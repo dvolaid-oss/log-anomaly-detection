@@ -1,0 +1,28 @@
+# Config for the BGL dataset (BlueGene/L supercomputer, LogHub).
+# BGL has no sessions, so samples are built from fixed time windows instead (Stage 8).
+
+dataset: bgl
+seed: 42
+
+paths:
+  raw_dir: data/raw/bgl
+  artifacts_dir: artifacts/bgl
+  reports_dir: reports/bgl
+
+grouping:                         # Stage 8
+  method: time_window
+  window_minutes: 60              # length of each window
+  step_minutes: 60                # equal to window → non-overlapping windows
+
+parsing:
+  sim_threshold: 0.4
+  depth: 4
+
+features:
+  type: event_count
+
+models:
+  isolation_forest:
+    n_estimators: 100
+  pca:
+    variance_kept: 0.95

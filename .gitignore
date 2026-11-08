@@ -1,0 +1,40 @@
+# --- Data and generated outputs: NEVER commit these -------------------------
+# Raw logs (downloaded LogHub data, any personal logs)
+data/*
+!data/README.md
+
+# Parsed logs, feature matrices, trained models
+artifacts/*
+!artifacts/.gitkeep
+
+# Any stray log files (e.g. personal logs) anywhere except small test fixtures
+*.log
+!tests/fixtures/**/*.log
+
+# --- Python -----------------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# --- Tools ------------------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# --- Secrets and local settings ---------------------------------------------
+.env
+.streamlit/secrets.toml
+
+# Editor: share only the project settings and recommended extensions
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS junk
+Thumbs.db
+.DS_Store

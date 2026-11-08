@@ -1,0 +1,26 @@
+# Config for the HDFS dataset (LogHub). Every pipeline step reads its settings from here.
+# Sections marked "Stage N" are starting values; each is finalised in the stage that uses it.
+
+dataset: hdfs
+seed: 42                          # fixed random seed → reproducible results
+
+paths:
+  raw_dir: data/raw/hdfs          # filled by `logad download` (Stage 1)
+  artifacts_dir: artifacts/hdfs   # parsed logs, feature matrices, trained models
+  reports_dir: reports/hdfs       # charts and results tables
+
+grouping:                         # Stage 3: how log lines are grouped into samples
+  method: session                 # HDFS: one sample per block_id (the adapter's group_id)
+
+parsing:                          # Stage 2: Drain log parser
+  sim_threshold: 0.4              # how similar two lines must be to share a template
+  depth: 4                        # depth of Drain's parse tree
+
+features:                         # Stage 3
+  type: event_count               # event_count | tfidf
+
+models:                           # Stage 4+
+  isolation_forest:
+    n_estimators: 100
+  pca:
+    variance_kept: 0.95           # keep components explaining 95% of normal variance

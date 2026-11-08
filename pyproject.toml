@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logad"
+version = "0.1.0"
+description = "Unsupervised log anomaly detection on LogHub HDFS, BGL and security logs."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "dvolaid-oss" }]
+# Dependencies are listed once, in requirements.txt (pinned), and read from there.
+dynamic = ["dependencies"]
+
+[project.scripts]
+logad = "logad.cli:app"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# --- Linting / formatting -----------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W: style, F: real bugs (unused imports, undefined names), I: import order,
+# B: common bug patterns, UP: modern Python syntax, SIM: simpler code.
+select = ["E", "W", "F", "I", "B", "UP", "SIM"]
+
+# --- Tests --------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

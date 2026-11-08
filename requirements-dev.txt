@@ -1,0 +1,6 @@
+# Development tools: everything in requirements.txt, plus testing, linting and notebooks.
+-r requirements.txt
+
+pytest==9.2.0
+ruff==0.17.4
+ipykernel==7.4.0

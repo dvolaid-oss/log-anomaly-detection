@@ -1,0 +1,24 @@
+# Runtime dependencies, pinned to exact versions for reproducible installs.
+# pyproject.toml reads this file, so versions are defined in one place only.
+# PyTorch is added in Stage 6.
+
+# Data handling
+numpy==2.5.4
+pandas==3.1.1
+pyarrow==26.0.1
+duckdb==2.0.0
+
+# Log parsing
+drain3==0.9.11
+
+# Machine learning
+scikit-learn==1.9.1
+
+# Charts and dashboard
+matplotlib==3.11.2
+plotly==7.1.0
+streamlit==1.67.0
+
+# Config and CLI
+PyYAML==6.0.3
+typer==0.28.0
