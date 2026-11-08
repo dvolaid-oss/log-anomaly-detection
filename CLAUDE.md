@@ -42,7 +42,8 @@ Pipeline: LogHub HDFS → BGL → Security logs (SSH auth.log / Windows events).
 - Work only inside the project folder. Explain any command that installs software or
   changes system settings before running it.
 - Git identity for this repo: `dvolaid-oss <274262795+dvolaid-oss@users.noreply.github.com>`. GitHub: `dvolaid-oss/log-anomaly-detection`
-  (public). I create the repo on github.com; Claude pushes only after my OK.
+  (**private for now**; make public before sharing on CV/LinkedIn, after a check that no
+  private data is in the history). Claude pushes only after my OK.
 - License: MIT.
 
 ---
@@ -162,7 +163,7 @@ about 3–4 weeks at 15–20 h/week.
 
 ### Next
 - [ ] Me: open the project in VS Code, run the tests myself, answer the check questions
-- [ ] Me: create the empty public repo `log-anomaly-detection` on github.com → Claude pushes
+- [x] Me: create the repo `log-anomaly-detection` on github.com (private for now) → pushed
 - [ ] Stage 1: download script + HDFS adapter + EDA notebook (after I say "next")
 
 ### My open questions
