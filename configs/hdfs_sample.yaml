@@ -1,0 +1,36 @@
+# Config for the HDFS 2k sample (LogHub GitHub, 2,000 lines, NO labels).
+# Small and fast: good for trying commands and for development. Use configs/hdfs.yaml for
+# real results, because only the full dataset has anomaly labels.
+
+dataset: hdfs                     # same format as the full dataset → same adapter
+seed: 42
+
+paths:
+  raw_dir: data/raw/hdfs_sample
+  artifacts_dir: artifacts/hdfs_sample
+  reports_dir: reports/hdfs_sample
+
+data:
+  files:
+    # Pinned to a fixed commit, so the file can never change under us.
+    - url: https://raw.githubusercontent.com/logpai/loghub/374038faa4ca122dd7ca0730372c0b78f76f8597/HDFS/HDFS_2k.log
+      filename: HDFS_2k.log
+      checksum: sha256:7c967000980c086ed55fa6544ba4f05fe66d44622795e890c68caf8bbb635035
+  log_file: HDFS_2k.log
+  label_file: null                # the sample has no labels
+
+grouping:
+  method: session
+
+parsing:
+  sim_threshold: 0.4
+  depth: 4
+
+features:
+  type: event_count
+
+models:
+  isolation_forest:
+    n_estimators: 100
+  pca:
+    variance_kept: 0.95

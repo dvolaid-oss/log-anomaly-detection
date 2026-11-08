@@ -2,7 +2,8 @@
 
 Usage:
     logad show-config --config configs/hdfs.yaml
-    logad parse --config configs/hdfs.yaml
+    logad download --config configs/hdfs.yaml
+    logad ingest --config configs/hdfs.yaml
 
 Each pipeline stage is one command. Commands print a "not built yet" message until
 their stage is implemented.
@@ -16,10 +17,12 @@ from typing import Annotated
 import typer
 
 from logad import __version__
+from logad.adapters import ingest_dataset
 from logad.config import load_config
+from logad.download import download_dataset
 
 app = typer.Typer(
-    help="Log anomaly detection pipeline: download → parse → features → train → evaluate.",
+    help="Log anomaly detection pipeline: download → ingest → parse → features → train → evaluate.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -50,7 +53,7 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """Log anomaly detection pipeline: download → parse → features → train → evaluate."""
+    """Log anomaly detection pipeline: download → ingest → parse → features → train → evaluate."""
 
 
 @app.command("show-config")
@@ -65,8 +68,28 @@ def show_config(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 @app.command()
 def download(config: ConfigPath = DEFAULT_CONFIG) -> None:
-    """Download the raw dataset from official LogHub sources."""
-    _not_built_yet("download", 1, config)
+    """Download the raw dataset from official LogHub sources and verify checksums."""
+    cfg = load_config(config)
+    download_dataset(cfg, report=typer.echo)
+    typer.echo(f"[{cfg['dataset']}] Raw data is ready in {cfg['paths']['raw_dir']}")
+
+
+@app.command()
+def ingest(config: ConfigPath = DEFAULT_CONFIG) -> None:
+    """Convert raw logs to the common schema and save them as Parquet."""
+    cfg = load_config(config)
+    typer.echo(
+        f"[{cfg['dataset']}] Ingesting {cfg['paths']['raw_dir']} (may take a few minutes)..."
+    )
+    out_path, stats = ingest_dataset(cfg)
+    typer.echo(f"  lines read:           {stats.lines:,}")
+    typer.echo(f"  lines skipped (bad):  {stats.skipped_lines:,}")
+    typer.echo(f"  rows written:         {stats.rows:,}")
+    typer.echo(f"  lines without block:  {stats.lines_without_group:,}")
+    typer.echo(f"  groups (blocks):      {stats.groups:,}")
+    typer.echo(f"  anomalous groups:     {stats.anomalous_groups:,}")
+    typer.echo(f"  unlabelled groups:    {stats.unlabelled_groups:,}")
+    typer.echo(f"Saved {out_path}")
 
 
 @app.command()
@@ -95,7 +118,7 @@ def evaluate(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 @app.command("run-all")
 def run_all(config: ConfigPath = DEFAULT_CONFIG) -> None:
-    """Run every step in order: download → parse → features → train → evaluate."""
+    """Run every step in order: download → ingest → parse → features → train → evaluate."""
     _not_built_yet("run-all", 5, config)
 
 

@@ -7,10 +7,12 @@ from logad.config import load_config
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
 
 
-@pytest.mark.parametrize("name", ["hdfs", "bgl"])
-def test_project_configs_load(name):
+@pytest.mark.parametrize(
+    ("name", "dataset"), [("hdfs", "hdfs"), ("hdfs_sample", "hdfs"), ("bgl", "bgl")]
+)
+def test_project_configs_load(name, dataset):
     config = load_config(CONFIG_DIR / f"{name}.yaml")
-    assert config["dataset"] == name
+    assert config["dataset"] == dataset
     assert isinstance(config["seed"], int)
     assert "artifacts_dir" in config["paths"]
 

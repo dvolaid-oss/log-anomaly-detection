@@ -16,11 +16,13 @@ Pipeline: LogHub HDFS → BGL → Security logs (SSH auth.log / Windows events).
 - Goal: build a FULL, professional-quality project FAST (3–4 weeks at 15–20 h/week),
   while understanding it well enough to defend every design decision in an interview.
 
-## Session rule: ONE stage per session
-To keep each conversation's context small and focused, **every stage runs in its own fresh
-Claude Code session**, opened in `D:\Projects\log-anomaly-detection` (so this file loads
-automatically). This file is the only memory that carries between sessions, so it must
-always be complete and up to date.
+## Session rule: continue until ~90% context, then hand off
+(Changed 2026-11-08: was "one stage per session".) Stages continue in the **same** Claude
+Code session until its context is about **90% used**. Then Claude updates **Progress →
+Hand-off** here and tells me to open a new session in `D:\Projects\log-anomaly-detection`
+(so this file loads automatically). Claude can't see an exact percentage, so it estimates and
+hands off early rather than late, ideally at the end of a stage. This file is the only memory
+that carries between sessions, so it must always be complete and up to date.
 
 Session flow:
 1. Read this file, especially **Progress → Hand-off for the next session**.
@@ -28,10 +30,10 @@ Session flow:
 3. Ask me any questions → explain the plan → **wait for "next"**.
 4. Build the stage → explain it → I run it → check questions + interview questions.
 5. Commit, update **Progress** (session log, done, hand-off), push after my OK.
-6. Tell me the stage is finished and that the next stage starts in a new session.
+6. Tell me the stage is finished; continue with the next stage here unless context is near 90%.
 
 Kickoff message for a new session:
-> Read CLAUDE.md and start Stage N following the session rule.
+> Read CLAUDE.md and continue from the hand-off following the session rule.
 
 ## Working style: build fast, understand deeply
 - **Before each stage:** Claude asks any questions it needs, explains the plan, and
@@ -122,19 +124,20 @@ log-anomaly-detection/
 ├── pyproject.toml            # package metadata, ruff + pytest config, `logad` entry point
 ├── requirements.txt          # pinned runtime deps (single source of truth)
 ├── requirements-dev.txt      # + pytest, ruff, ipykernel
-├── configs/                  # hdfs.yaml, bgl.yaml
+├── configs/                  # hdfs.yaml (full), hdfs_sample.yaml (2k lines), bgl.yaml
 ├── data/                     # raw data (gitignored), download script fills it
 ├── artifacts/                # parsed logs, features, models (gitignored)
 ├── docs/                     # setup guide, design notes
 ├── src/logad/
-│   ├── adapters/             # hdfs.py, bgl.py, auth_log.py, windows_events.py
+│   ├── adapters/             # base.py (common schema), hdfs.py, bgl.py, auth_log.py, ...
 │   ├── parsing/              # drain wrapper, template store
 │   ├── features/             # event-count matrix, windowing, TF-IDF
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, autoencoder.py
 │   ├── evaluation/           # metrics, threshold selection, plots
 │   ├── explain/              # anomaly explanations
 │   ├── config.py             # YAML config loading + validation
-│   └── cli.py                # `logad download | parse | features | train | evaluate | run-all`
+│   ├── download.py           # safe downloads: host allowlist, checksums, zip-slip check
+│   └── cli.py                # `logad download | ingest | parse | features | train | evaluate | run-all`
 ├── app/dashboard.py          # Streamlit app
 ├── notebooks/01_exploration.ipynb
 ├── reports/                  # generated charts + results.md
@@ -156,14 +159,14 @@ about 3–4 weeks at 15–20 h/week.
 | # | Stage | What gets built | Est. | Week |
 |---|-------|-----------------|------|------|
 | 0 | Setup | VS Code, venv, full scaffold, CLAUDE.md, CI, README skeleton, GitHub repo | 2–3 h | 1 |
-| 1 | Data + EDA | Download script (LogHub 2k samples, later full HDFS from Zenodo), HDFS adapter, EDA notebook | 4–6 h | 1 |
+| 1 | Data + EDA | Download script (2k sample + full HDFS_v1 from Zenodo), HDFS adapter, `ingest`, EDA notebook | 4–6 h | 1 |
 | 2 | Parsing | Drain wrapper, templates saved to artifacts, tests | 3–4 h | 1 |
 | 3 | Features | Event-count matrix per block_id, TF-IDF option, tests | 3–4 h | 2 |
 | 4 | Models | Model interface, rule baseline, PCA, Isolation Forest | 4–6 h | 2 |
 | 5 | Evaluation | Metrics, threshold tuning, PR curves, `reports/results.md` | 4–5 h | 2 |
 | 6 | Autoencoder | PyTorch autoencoder, compared against the others | 4–6 h | 3 |
 | 7 | Explain + dashboard | Explanations module, Streamlit app, deploy on Streamlit Community Cloud | 6–8 h | 3 |
-| 8 | Scale | Full HDFS + BGL adapter with time-window features | 5–8 h | 3–4 |
+| 8 | Scale | BGL adapter with time-window features (full HDFS moved to Stage 1) | 5–8 h | 3–4 |
 | 9 | Security twist | Synthetic SSH auth.log (+ maybe Windows events); brute-force / unusual login detection; dashboard demo | 5–8 h | 4 |
 | 10 | Polish | README diagram, results, screenshots, dashboard GIF, "what I learned", "future work" (LSTM/DeepLog) | 4–6 h | 4 |
 
@@ -179,20 +182,39 @@ about 3–4 weeks at 15–20 h/week.
   I ran the tests and CLI myself in VS Code (9 passed). Pushed to GitHub; first push was
   rejected (GH007, email privacy) → switched to the GitHub noreply email. Repo made public.
   Introduced the one-stage-per-session rule.
+- **2026-11-08 (Stage 1):** I postponed answering the Stage 0 check questions ("ask later") and
+  said to continue with Claude's recommended defaults. Built: `logad download` (allowlisted
+  hosts, md5/sha256 checks, atomic `.part` files, zip-slip check, stdlib only), common schema
+  (`adapters/base.py`), HDFS adapter + `logad ingest` (chunked, 1M lines per chunk → Parquet),
+  `configs/hdfs_sample.yaml`, EDA notebook, 23 new tests (32 total, all pass, ruff clean).
+  Claude verified on real data: full ingest = 11,175,629 lines, 575,061 blocks, 16,838 anomalous
+  (2.93%), 0 skipped lines, ~65 s, peak RAM 1.9 GB, Parquet 187 MB. Notebook ran end-to-end (~13 s).
+  I ran download, ingest and the notebook myself (after fixing two kernel issues: wrong kernel
+  picked, and a DuckDB progress-bar setting that fails in Jupyter) and saved it with outputs.
+  Claude explained all 6 check questions (Stage 0 + Stage 1); I said "questions later", so
+  my own answers and the interview questions are still open. Committed and pushed Stage 1.
+  Changed the session rule: keep going in the same session until ~90% context.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
+- [x] Stage 1: download + HDFS adapter + ingest + EDA notebook, pushed (check questions postponed)
 
 ### Hand-off for the next session
-- **Next stage: Stage 1** (data download script + HDFS adapter + EDA notebook).
-- Still open from Stage 0, ask me first:
-  - Did the GitHub Actions CI run pass (green ✓ in the Actions tab)?
-  - My answers to the Stage 0 check questions:
-    1. Why does `data/` hold only a README in Git, and what would go wrong if we committed raw logs?
-    2. `show-config` printed different paths for BGL than for HDFS. What does that show about the design?
-    3. What's the point of `.venv`? What breaks if every project shares one Python install?
+- **Next: Stage 2** (Drain parsing). Stage 1 is committed and pushed.
+- Still open, ask me when I want ("questions later"):
+  - My own answers to the 6 check questions (Claude already explained the answers):
+    Stage 0: (1) why `data/` holds only a README, (2) why `show-config` paths differ per
+    dataset, (3) what `.venv` is for. Stage 1: (4) why `.part` files, (5) the "flag every WARN"
+    rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
+    reads them; otherwise data leakage).
+  - Stage 1 interview questions with strong answers (not given yet).
+- CI status (public repo):
+  `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
+- Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
+  `artifacts/hdfs/logs.parquet` (11.2M rows). Rerun with `logad download` / `logad ingest`.
 - Things I already know how to do: open the project in VS Code, open the terminal
-  (View → Terminal), activate the venv (`.venv\Scripts\Activate.ps1`), run `pytest` and `logad`.
+  (View → Terminal), activate the venv (`.venv\Scripts\Activate.ps1`), run `pytest` and `logad`,
+  open a notebook, pick the `.venv` kernel, Run All, save.
 
 ### My open questions
 - (none yet)
@@ -205,5 +227,19 @@ about 3–4 weeks at 15–20 h/week.
 - Dependencies declared once in `requirements.txt`; `pyproject.toml` reads them dynamically.
 - PyTorch deferred to Stage 6 so the base install stays small and CI stays fast.
 - Stage 9 uses synthetic security logs: safe to publish, known ground truth.
-- One stage per Claude Code session, with CLAUDE.md as the hand-off, so long conversations
-  never degrade the work.
+- Sessions: originally one stage per session; changed on 2026-11-08 to "continue in the same
+  session until ~90% context, then hand off via this file".
+- Stage 1 downloads the **full HDFS_v1** (not only the 2k sample), because the 2k sample has
+  no labels. The sample stays as `configs/hdfs_sample.yaml` for quick runs. Stage 8 is now BGL only.
+- Two configs (`hdfs.yaml`, `hdfs_sample.yaml`) instead of a `--variant` flag: each config is
+  one dataset with its own paths, so later stages need no special cases.
+- Common schema = `line_id, timestamp, source, level, component, message, group_id, label`
+  (added `line_id` and `component` to the original plan). One row per (line, block): a line
+  mentioning several blocks is repeated per block, as in the loglizer reference code.
+  `label`: 1 anomaly, 0 normal, null unknown; used only for evaluation.
+- New `logad ingest` step (adapter → `artifacts/<dataset>/logs.parquet`), separate from `parse`.
+- Downloads use only the standard library (`urllib`, `hashlib`, `zipfile`): no new packages.
+- Notebook outputs are committed so charts render on GitHub; charts saved to `reports/hdfs/`.
+- Notebooks: test them in a real Jupyter kernel (jupyter_client), not as a plain script. In
+  Jupyter, DuckDB 2.0 refuses `SET enable_progress_bar` without ipywidgets, so we don't set it.
+- VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

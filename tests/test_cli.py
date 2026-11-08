@@ -12,7 +12,7 @@ HDFS_CONFIG = str(Path(__file__).resolve().parents[1] / "configs" / "hdfs.yaml")
 def test_help_lists_all_pipeline_commands():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ["download", "parse", "features", "train", "evaluate", "run-all"]:
+    for command in ["download", "ingest", "parse", "features", "train", "evaluate", "run-all"]:
         assert command in result.output
 
 

@@ -35,6 +35,22 @@ It is benchmarked on the public [LogHub](https://github.com/logpai/loghub) datas
 5. **Evaluation** uses the labels only here: precision, recall, F1, PR curves.
 6. **Explanations** say why each anomaly was flagged, shown in a Streamlit dashboard.
 
+## Data
+
+[LogHub HDFS_v1](https://github.com/logpai/loghub): 11.2M log lines from a Hadoop cluster,
+grouped into 575,061 blocks (sessions), of which **2.93% are labelled anomalous**.
+Downloaded by `logad download` from Zenodo with checksum verification (see [data/README.md](data/README.md)).
+
+Exploratory analysis: [notebooks/01_exploration.ipynb](notebooks/01_exploration.ipynb). Key findings:
+
+- Only INFO/WARN levels: anomalies must be found from patterns, not error messages.
+- A "flag any WARN" rule fails: 48% of anomalous blocks have a WARN, but so do 23% of normal ones.
+- Short blocks are suspicious: no normal block has under 13 lines, but 37% of anomalous blocks do.
+- Some message types are strong signals (e.g. one appears in 30% of anomalous vs 0.04% of normal blocks).
+- ~10M distinct messages reduce to under 100 templates → a log parser is essential.
+
+![Block length, normal vs anomalous](reports/hdfs/eda_block_length.png)
+
 ## Results
 
 _Coming in Stage 5._
@@ -51,6 +67,9 @@ pip install -e . --no-deps
 
 logad --help          # list pipeline commands
 pytest                # run the tests
+
+logad download --config configs/hdfs.yaml   # 187 MB from Zenodo, checksum-verified
+logad ingest   --config configs/hdfs.yaml   # raw logs → artifacts/hdfs/logs.parquet (~1 min)
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -71,14 +90,14 @@ data/, artifacts/ raw data and generated files (not committed)
 | # | Stage | Status |
 |---|-------|--------|
 | 0 | Setup, scaffold, CI | ✅ |
-| 1 | Data download + HDFS adapter + EDA | ⏳ |
+| 1 | Data download + HDFS adapter + EDA | ✅ |
 | 2 | Parsing with Drain | ⏳ |
 | 3 | Features (event counts, TF-IDF) | ⏳ |
 | 4 | Models: baseline, PCA, Isolation Forest | ⏳ |
 | 5 | Evaluation + results table | ⏳ |
 | 6 | Autoencoder (PyTorch) | ⏳ |
 | 7 | Explanations + Streamlit dashboard | ⏳ |
-| 8 | Full HDFS + BGL (time windows) | ⏳ |
+| 8 | BGL (time windows) | ⏳ |
 | 9 | Security logs: SSH brute-force detection | ⏳ |
 | 10 | Polish | ⏳ |
 

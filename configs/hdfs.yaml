@@ -1,13 +1,24 @@
-# Config for the HDFS dataset (LogHub). Every pipeline step reads its settings from here.
+# Config for the full HDFS dataset (LogHub HDFS_v1, ~11M lines, labelled per block).
+# Every pipeline step reads its settings from here.
 # Sections marked "Stage N" are starting values; each is finalised in the stage that uses it.
+# For quick experiments on 2,000 lines, use configs/hdfs_sample.yaml instead.
 
-dataset: hdfs
+dataset: hdfs                     # picks the adapter (src/logad/adapters/hdfs.py)
 seed: 42                          # fixed random seed → reproducible results
 
 paths:
-  raw_dir: data/raw/hdfs          # filled by `logad download` (Stage 1)
+  raw_dir: data/raw/hdfs          # filled by `logad download`
   artifacts_dir: artifacts/hdfs   # parsed logs, feature matrices, trained models
   reports_dir: reports/hdfs       # charts and results tables
+
+data:                             # Stage 1: where the raw data comes from
+  files:                          # downloaded into raw_dir; only official LogHub hosts
+    - url: https://zenodo.org/records/8196385/files/HDFS_v1.zip?download=1
+      filename: HDFS_v1.zip       # 187 MB zip → ~1.5 GB unzipped
+      checksum: md5:76a24b4d9a6164d543fb275f89773260   # published by Zenodo
+      extract: true
+  log_file: HDFS.log              # relative to raw_dir
+  label_file: preprocessed/anomaly_label.csv   # BlockId,Label (Normal/Anomaly)
 
 grouping:                         # Stage 3: how log lines are grouped into samples
   method: session                 # HDFS: one sample per block_id (the adapter's group_id)
