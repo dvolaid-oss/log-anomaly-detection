@@ -5,6 +5,7 @@ Usage:
     logad download --config configs/hdfs.yaml
     logad ingest --config configs/hdfs.yaml
     logad parse --config configs/hdfs.yaml
+    logad features --config configs/hdfs.yaml
 
 Each pipeline stage is one command. Commands print a "not built yet" message until
 their stage is implemented.
@@ -21,6 +22,7 @@ from logad import __version__
 from logad.adapters import ingest_dataset
 from logad.config import load_config
 from logad.download import download_dataset
+from logad.features import build_features
 from logad.parsing import parse_dataset
 
 app = typer.Typer(
@@ -113,8 +115,14 @@ def parse(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 @app.command()
 def features(config: ConfigPath = DEFAULT_CONFIG) -> None:
-    """Build feature matrices (event counts per block/window, TF-IDF)."""
-    _not_built_yet("features", 3, config)
+    """Build the event-count matrix (one row per block) with time-based splits."""
+    cfg = load_config(config)
+    typer.echo(f"[{cfg['dataset']}] Building features from {cfg['paths']['artifacts_dir']} ...")
+    stats = build_features(cfg)
+    typer.echo(f"  matrix: {stats.blocks:,} blocks x {stats.events} events")
+    typer.echo(stats.split_summary.to_string())
+    typer.echo(f"Saved {cfg['paths']['artifacts_dir']}/features.parquet")
+    typer.echo(f"Summary: {cfg['paths']['reports_dir']}/features.md")
 
 
 @app.command()

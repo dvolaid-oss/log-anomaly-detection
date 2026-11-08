@@ -131,7 +131,7 @@ log-anomaly-detection/
 ├── src/logad/
 │   ├── adapters/             # base.py (common schema), hdfs.py, bgl.py, auth_log.py, ...
 │   ├── parsing/              # drain.py (masking + Drain wrapper), accuracy.py (grouping accuracy), __init__ (pipeline)
-│   ├── features/             # event-count matrix, windowing, TF-IDF
+│   ├── features/             # __init__ (event-count matrix + time splits), transform.py (TF-IDF, scaling)
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, autoencoder.py
 │   ├── evaluation/           # metrics, threshold selection, plots
 │   ├── explain/              # anomaly explanations
@@ -203,15 +203,23 @@ about 3–4 weeks at 15–20 h/week.
   (line_id, timestamp, group_id, event_id, label), `templates.csv`, `drain_parser.json.zlib`,
   `reports/<dataset>/templates.md`. I ran download + both parse commands myself (same results).
   Committed and pushed Stage 2.
+- **2026-11-08 (Stage 3, same session):** I said I watch the context meter myself and will
+  tell Claude when to hand off (it was 24% when Claude guessed 60%). Built `logad features`:
+  event-count matrix per block (`features/__init__.py`), time-based train/validation/test
+  split 60/20/20, `features/transform.py` (TF-IDF weighting + optional StandardScaler, sklearn
+  API, fitted on train only), `reports/<dataset>/features.md`, 13 new tests (59 total).
+  Full HDFS: 575,061 × 45 in ~8 s; anomaly rate train 3.23%, validation 3.48%, test 1.46%.
+  I ran `logad features` myself (same results). Committed and pushed Stage 3.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
 - [x] Stage 1: download + HDFS adapter + ingest + EDA notebook, pushed (check questions postponed)
 - [x] Stage 2: masking + Drain parsing (100% grouping accuracy on 2k sample), pushed
+- [x] Stage 3: event-count matrix + time splits + TF-IDF/scaling transformer, pushed
 
 ### Hand-off for the next session
-- **Next: Stage 3** (features: event-count matrix per block, from `artifacts/hdfs/events.parquet`).
-  Stages 1 and 2 are committed and pushed.
+- **Next: Stage 4** (models: common interface, rule baseline, PCA, Isolation Forest), reading
+  `load_features(config)` and fitting `transformer_from_config(config)` on the train split.
 - Still open, ask me when I want ("questions later"):
   - My own answers to the 6 check questions (Claude already explained the answers):
     Stage 0: (1) why `data/` holds only a README, (2) why `show-config` paths differ per
@@ -219,7 +227,7 @@ about 3–4 weeks at 15–20 h/week.
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
   - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
-    Stage 2 check questions (not asked yet).
+    Stage 2 and 3 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -267,4 +275,14 @@ about 3–4 weeks at 15–20 h/week.
 - Saved parser = zlib-compressed JSON with a jsonpickle'd Drain tree: only load files we made
   (jsonpickle can rebuild arbitrary objects).
 - DuckDB 2.0: relations have no `fetchone()`; use `con.sql(q).fetchall()`.
+- Features: split by TIME (block's first line), 60/20/20 train/validation/test, not random:
+  train on the past, judge on the future (no leakage backwards in time). Validation is for
+  threshold choice (Stage 5), test is touched once for final numbers.
+- Training data keeps its ~3% anomalous blocks (removing them would need labels → not
+  unsupervised).
+- TF-IDF uses sklearn's smoothed IDF `ln((1+N)/(1+df)) + 1` (every weight ≥ 1; an event in
+  every block gets 1.0). TF-IDF and scaling are fitted on train only.
+- `features.parquet` stores RAW counts; transformations happen at model time, so one
+  matrix serves every model/config.
+- Test split has a lower anomaly rate (1.46% vs ~3.3%): time drift, reported, not "fixed".
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

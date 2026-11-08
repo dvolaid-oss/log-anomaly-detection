@@ -34,8 +34,12 @@ parsing:                          # Stage 2: masking + Drain log parser
     - name: NUM                   # any remaining number (sizes, thread IDs, ...)
       pattern: '\d+'
 
-features:                         # Stage 3
-  type: event_count               # event_count | tfidf
+features:                         # Stage 3: event-count matrix per block
+  type: event_count               # event_count | tfidf (IDF weights learned on train only)
+  scale: false                    # true → zero mean, unit variance per event (train only)
+  split:                          # by TIME (block's first line): train, validation, test
+    train: 0.6                    # oldest 60%: models learn from this
+    validation: 0.2               # next 20%: pick alert thresholds (Stage 5); test = rest
 
 models:                           # Stage 4+
   isolation_forest:

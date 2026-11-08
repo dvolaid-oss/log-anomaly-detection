@@ -66,6 +66,21 @@ Speed trick: Drain only sees the masked text, so it reads each *distinct* masked
 29 templates; our extra ones are rare Java-exception variants (< 0.1% of lines each).
 Full table: [reports/hdfs/templates.md](reports/hdfs/templates.md).
 
+## Features
+
+`logad features` turns each block into a row of event counts: a **575,061 × 45 matrix**,
+built in ~8 s. Blocks are split **by time** so models learn from the past and are judged on
+the future:
+
+| Split | Blocks | Anomaly % | Used for |
+|-------|-------:|----------:|----------|
+| train (oldest 60%) | 345,037 | 3.23 | fitting models (labels never read) |
+| validation (next 20%) | 115,012 | 3.48 | choosing alert thresholds |
+| test (newest 20%) | 115,012 | 1.46 | final, untouched evaluation |
+
+The anomaly rate drops in the test period: a realistic shift that makes precision harder.
+Optional TF-IDF weighting (rare events count more) and scaling are learned on the train split only.
+
 ## Results
 
 _Coming in Stage 5._
@@ -86,6 +101,7 @@ pytest                # run the tests
 logad download --config configs/hdfs.yaml   # 187 MB from Zenodo, checksum-verified
 logad ingest   --config configs/hdfs.yaml   # raw logs → artifacts/hdfs/logs.parquet (~1 min)
 logad parse    --config configs/hdfs.yaml   # messages → templates, artifacts/hdfs/events.parquet
+logad features --config configs/hdfs.yaml   # event-count matrix per block + time-based splits
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -108,7 +124,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 0 | Setup, scaffold, CI | ✅ |
 | 1 | Data download + HDFS adapter + EDA | ✅ |
 | 2 | Parsing with Drain | ✅ |
-| 3 | Features (event counts, TF-IDF) | ⏳ |
+| 3 | Features (event counts, TF-IDF) | ✅ |
 | 4 | Models: baseline, PCA, Isolation Forest | ⏳ |
 | 5 | Evaluation + results table | ⏳ |
 | 6 | Autoencoder (PyTorch) | ⏳ |
