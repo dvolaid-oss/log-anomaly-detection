@@ -6,6 +6,7 @@ Usage:
     logad ingest --config configs/hdfs.yaml
     logad parse --config configs/hdfs.yaml
     logad features --config configs/hdfs.yaml
+    logad train --config configs/hdfs.yaml
 
 Each pipeline stage is one command. Commands print a "not built yet" message until
 their stage is implemented.
@@ -23,6 +24,7 @@ from logad.adapters import ingest_dataset
 from logad.config import load_config
 from logad.download import download_dataset
 from logad.features import build_features
+from logad.models import train_models
 from logad.parsing import parse_dataset
 
 app = typer.Typer(
@@ -127,8 +129,27 @@ def features(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 @app.command()
 def train(config: ConfigPath = DEFAULT_CONFIG) -> None:
-    """Train the anomaly detectors (unsupervised: no labels)."""
-    _not_built_yet("train", 4, config)
+    """Train the anomaly detectors on the train split (unsupervised: no labels)."""
+    cfg = load_config(config)
+    typer.echo(
+        f"[{cfg['dataset']}] Training on the train split of {cfg['paths']['artifacts_dir']} ..."
+    )
+    results = train_models(cfg)
+
+    def fmt(value: float | None) -> str:
+        return "  n/a" if value is None else f"{value:.3f}"
+
+    typer.echo("  Quick check on the validation split (full evaluation: Stage 5)")
+    typer.echo(f"  {'model':<18}{'fit (s)':>8}{'ROC-AUC':>9}{'PR-AUC':>8}")
+    for r in results:
+        typer.echo(
+            f"  {r.model:<18}{r.fit_seconds:>8.1f}{fmt(r.val_roc_auc):>9}{fmt(r.val_pr_auc):>8}"
+        )
+    typer.echo("  ROC-AUC: 0.5 = random guessing, 1.0 = perfect ranking.")
+    if results and results[0].val_anomaly_share is not None:
+        share = results[0].val_anomaly_share
+        typer.echo(f"  PR-AUC: random guessing = share of anomalies = {share:.3f}, 1.0 = perfect.")
+    typer.echo(f"Saved models and scores.parquet in {cfg['paths']['artifacts_dir']}")
 
 
 @app.command()

@@ -29,6 +29,6 @@ def test_show_config_prints_dataset():
 
 
 def test_placeholder_command_says_which_stage():
-    result = runner.invoke(app, ["train", "--config", HDFS_CONFIG])
+    result = runner.invoke(app, ["evaluate", "--config", HDFS_CONFIG])
     assert result.exit_code == 1
-    assert "Stage 4" in result.output
+    assert "Stage 5" in result.output

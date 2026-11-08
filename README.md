@@ -81,6 +81,22 @@ the future:
 The anomaly rate drops in the test period: a realistic shift that makes precision harder.
 Optional TF-IDF weighting (rare events count more) and scaling are learned on the train split only.
 
+## Models
+
+`logad train` fits each detector on the **train split only, without labels**, and scores
+every block. All models share one interface (`fit`, `score`, `predict`), so they're swappable.
+
+| Model | Idea | Fit time | Validation ROC-AUC | Validation PR-AUC |
+|-------|------|---------:|-------------------:|------------------:|
+| Rule baseline | score = rarity of the block's rarest event | 0.1 s | 0.889 | 0.810 |
+| PCA (Xu et al. 2009) | error when rebuilding the block from 5 "normal" patterns (TF-IDF input) | 0.6 s | 0.981 | **0.859** |
+| Isolation Forest | how quickly random splits isolate the block | 0.6 s | **0.987** | 0.807 |
+
+PR-AUC of random guessing is 0.035 (the share of anomalies). These are quick, threshold-free
+checks on the validation split; the test split stays untouched until the final evaluation.
+Isolation Forest can't see events that never occurred in training (2 such events in HDFS,
+all 8 blocks containing them are anomalous); the baseline and PCA can.
+
 ## Results
 
 _Coming in Stage 5._
@@ -102,6 +118,7 @@ logad download --config configs/hdfs.yaml   # 187 MB from Zenodo, checksum-verif
 logad ingest   --config configs/hdfs.yaml   # raw logs → artifacts/hdfs/logs.parquet (~1 min)
 logad parse    --config configs/hdfs.yaml   # messages → templates, artifacts/hdfs/events.parquet
 logad features --config configs/hdfs.yaml   # event-count matrix per block + time-based splits
+logad train    --config configs/hdfs.yaml   # fit baseline, PCA, Isolation Forest; score all blocks
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -125,7 +142,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 1 | Data download + HDFS adapter + EDA | ✅ |
 | 2 | Parsing with Drain | ✅ |
 | 3 | Features (event counts, TF-IDF) | ✅ |
-| 4 | Models: baseline, PCA, Isolation Forest | ⏳ |
+| 4 | Models: baseline, PCA, Isolation Forest | ✅ |
 | 5 | Evaluation + results table | ⏳ |
 | 6 | Autoencoder (PyTorch) | ⏳ |
 | 7 | Explanations + Streamlit dashboard | ⏳ |

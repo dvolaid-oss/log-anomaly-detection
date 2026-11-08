@@ -45,8 +45,11 @@ features:                         # Stage 3: event-count matrix per block
     train: 0.6                    # oldest 60%: models learn from this
     validation: 0.2               # next 20%: pick alert thresholds (Stage 5); test = rest
 
-models:
-  isolation_forest:
+models:                           # Stage 4: fitted on the TRAIN split only, never on labels
+  baseline: {}                    # rare-event rule: score = rarity of the block's rarest event
+  pca:                            # Xu et al. 2009: score = error rebuilding the block
+    transform: tfidf              # per-model override of features.type (rare events count more)
+    variance_kept: 0.95           # keep components explaining 95% of normal variance
+  isolation_forest:               # score = how quickly random splits isolate the block
+    transform: event_count
     n_estimators: 100
-  pca:
-    variance_kept: 0.95
