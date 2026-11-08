@@ -16,6 +16,23 @@ Pipeline: LogHub HDFS → BGL → Security logs (SSH auth.log / Windows events).
 - Goal: build a FULL, professional-quality project FAST (3–4 weeks at 15–20 h/week),
   while understanding it well enough to defend every design decision in an interview.
 
+## Session rule: ONE stage per session
+To keep each conversation's context small and focused, **every stage runs in its own fresh
+Claude Code session**, opened in `D:\Projects\log-anomaly-detection` (so this file loads
+automatically). This file is the only memory that carries between sessions, so it must
+always be complete and up to date.
+
+Session flow:
+1. Read this file, especially **Progress → Hand-off for the next session**.
+2. Finish anything left open from the previous stage (e.g. my unanswered check questions).
+3. Ask me any questions → explain the plan → **wait for "next"**.
+4. Build the stage → explain it → I run it → check questions + interview questions.
+5. Commit, update **Progress** (session log, done, hand-off), push after my OK.
+6. Tell me the stage is finished and that the next stage starts in a new session.
+
+Kickoff message for a new session:
+> Read CLAUDE.md and start Stage N following the session rule.
+
 ## Working style: build fast, understand deeply
 - **Before each stage:** Claude asks any questions it needs, explains the plan, and
   **waits for me to say "next"**. No files or installs before that.
@@ -41,9 +58,12 @@ Pipeline: LogHub HDFS → BGL → Security logs (SSH auth.log / Windows events).
   and hosts a public "Open in Colab" demo notebook.
 - Work only inside the project folder. Explain any command that installs software or
   changes system settings before running it.
-- Git identity for this repo: `dvolaid-oss <274262795+dvolaid-oss@users.noreply.github.com>`. GitHub: `dvolaid-oss/log-anomaly-detection`
-  (**private for now**; make public before sharing on CV/LinkedIn, after a check that no
-  private data is in the history). Claude pushes only after my OK.
+- Git identity for this repo: `dvolaid-oss <274262795+dvolaid-oss@users.noreply.github.com>`
+  (GitHub noreply address; my GitHub account blocks pushes that expose my real email).
+  **Never write my real email anywhere in the repo.**
+- GitHub: `dvolaid-oss/log-anomaly-detection`, **public**. Claude pushes only after my OK.
+  Before each push, check that no private data (emails, personal paths, secrets, logs) is
+  being committed: the whole history is public.
 - License: MIT.
 
 ---
@@ -156,15 +176,23 @@ about 3–4 weeks at 15–20 h/week.
   VS Code portable on D: (signature verified). Created `.venv` (pip cache on D:), installed and
   pinned dependencies. Scaffolded the repo: package, `logad` CLI (`show-config` works, pipeline
   commands are placeholders), config loader, configs, 9 passing tests, CI, README, setup guide.
-  First commit made locally.
+  I ran the tests and CLI myself in VS Code (9 passed). Pushed to GitHub; first push was
+  rejected (GH007, email privacy) → switched to the GitHub noreply email. Repo made public.
+  Introduced the one-stage-per-session rule.
 
 ### Done
-- [x] Stage 0: setup + scaffold (local commit; GitHub push pending)
+- [x] Stage 0: setup + scaffold, pushed to GitHub (public)
 
-### Next
-- [ ] Me: open the project in VS Code, run the tests myself, answer the check questions
-- [x] Me: create the repo `log-anomaly-detection` on github.com (private for now) → pushed
-- [ ] Stage 1: download script + HDFS adapter + EDA notebook (after I say "next")
+### Hand-off for the next session
+- **Next stage: Stage 1** (data download script + HDFS adapter + EDA notebook).
+- Still open from Stage 0, ask me first:
+  - Did the GitHub Actions CI run pass (green ✓ in the Actions tab)?
+  - My answers to the Stage 0 check questions:
+    1. Why does `data/` hold only a README in Git, and what would go wrong if we committed raw logs?
+    2. `show-config` printed different paths for BGL than for HDFS. What does that show about the design?
+    3. What's the point of `.venv`? What breaks if every project shares one Python install?
+- Things I already know how to do: open the project in VS Code, open the terminal
+  (View → Terminal), activate the venv (`.venv\Scripts\Activate.ps1`), run `pytest` and `logad`.
 
 ### My open questions
 - (none yet)
@@ -177,3 +205,5 @@ about 3–4 weeks at 15–20 h/week.
 - Dependencies declared once in `requirements.txt`; `pyproject.toml` reads them dynamically.
 - PyTorch deferred to Stage 6 so the base install stays small and CI stays fast.
 - Stage 9 uses synthetic security logs: safe to publish, known ground truth.
+- One stage per Claude Code session, with CLAUDE.md as the hand-off, so long conversations
+  never degrade the work.
