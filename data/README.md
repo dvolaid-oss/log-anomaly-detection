@@ -8,7 +8,7 @@ sources over HTTPS and checks every file against a published checksum:
 
 | Config | Source | Download | Labels |
 |--------|--------|----------|--------|
-| `configs/hdfs_sample.yaml` | GitHub [`logpai/loghub`](https://github.com/logpai/loghub), pinned commit | `HDFS_2k.log`, 288 KB, 2,000 lines | no |
+| `configs/hdfs_sample.yaml` | GitHub [`logpai/loghub`](https://github.com/logpai/loghub), pinned commit | `HDFS_2k.log`, 288 KB, 2,000 lines + `HDFS_2k.log_structured.csv` (true template per line, to score the parser) | no |
 | `configs/hdfs.yaml` | [Zenodo record 8196385](https://zenodo.org/records/8196385) | `HDFS_v1.zip`, 187 MB → 1.6 GB, 11.2M lines | yes, per block |
 
 ```powershell
@@ -22,7 +22,8 @@ Layout after downloading:
 data/
 └── raw/
     ├── hdfs_sample/
-    │   └── HDFS_2k.log
+    │   ├── HDFS_2k.log
+    │   └── HDFS_2k.log_structured.csv      ← ground-truth templates (parser accuracy)
     └── hdfs/
         ├── HDFS_v1.zip
         ├── HDFS.log                        ← used by the HDFS adapter

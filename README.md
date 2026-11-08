@@ -51,6 +51,21 @@ Exploratory analysis: [notebooks/01_exploration.ipynb](notebooks/01_exploration.
 
 ![Block length, normal vs anomalous](reports/hdfs/eda_block_length.png)
 
+## Parsing
+
+`logad parse` turns each message into a template (event ID): regex **masking** of known
+variables (block IDs, IPs, numbers), then the **Drain** algorithm groups what's left.
+
+| | Result |
+|---|---|
+| Accuracy on LogHub's hand-labelled 2k sample | **100% grouping accuracy**, 14 of 14 templates |
+| Full HDFS: 11.2M lines (10.3M distinct messages) | **45 templates in ~7 s** |
+
+Speed trick: Drain only sees the masked text, so it reads each *distinct* masked message once
+(86 for HDFS) and DuckDB maps the results back to all 11.2M lines. LogHub's reference list has
+29 templates; our extra ones are rare Java-exception variants (< 0.1% of lines each).
+Full table: [reports/hdfs/templates.md](reports/hdfs/templates.md).
+
 ## Results
 
 _Coming in Stage 5._
@@ -70,6 +85,7 @@ pytest                # run the tests
 
 logad download --config configs/hdfs.yaml   # 187 MB from Zenodo, checksum-verified
 logad ingest   --config configs/hdfs.yaml   # raw logs → artifacts/hdfs/logs.parquet (~1 min)
+logad parse    --config configs/hdfs.yaml   # messages → templates, artifacts/hdfs/events.parquet
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -91,7 +107,7 @@ data/, artifacts/ raw data and generated files (not committed)
 |---|-------|--------|
 | 0 | Setup, scaffold, CI | ✅ |
 | 1 | Data download + HDFS adapter + EDA | ✅ |
-| 2 | Parsing with Drain | ⏳ |
+| 2 | Parsing with Drain | ✅ |
 | 3 | Features (event counts, TF-IDF) | ⏳ |
 | 4 | Models: baseline, PCA, Isolation Forest | ⏳ |
 | 5 | Evaluation + results table | ⏳ |

@@ -16,15 +16,27 @@ data:
     - url: https://raw.githubusercontent.com/logpai/loghub/374038faa4ca122dd7ca0730372c0b78f76f8597/HDFS/HDFS_2k.log
       filename: HDFS_2k.log
       checksum: sha256:7c967000980c086ed55fa6544ba4f05fe66d44622795e890c68caf8bbb635035
+    # LogHub's hand-checked template for every line: used to score our parser (Stage 2).
+    - url: https://raw.githubusercontent.com/logpai/loghub/374038faa4ca122dd7ca0730372c0b78f76f8597/HDFS/HDFS_2k.log_structured.csv
+      filename: HDFS_2k.log_structured.csv
+      checksum: sha256:729df59774e3dde934044028546d2a55d5e3d4370b9d12fcebbe4c087b2bf7b4
   log_file: HDFS_2k.log
   label_file: null                # the sample has no labels
+  truth_file: HDFS_2k.log_structured.csv   # ground-truth templates → parsing accuracy
 
 grouping:
   method: session
 
-parsing:
-  sim_threshold: 0.4
-  depth: 4
+parsing:                          # Stage 2: masking + Drain log parser
+  sim_threshold: 0.4              # share of tokens that must match to join a template
+  depth: 4                        # depth of Drain's parse tree
+  masks:                          # regexes replaced BEFORE Drain, in this order
+    - name: BLK                   # HDFS block ID(s): blk_-1608999687919862906, or a list of them
+      pattern: 'blk_-?\d+( +blk_-?\d+)*'   # a list of blocks is ONE variable
+    - name: IP                    # IPv4 with optional port, e.g. 10.250.19.102:54106
+      pattern: '(\d+\.){3}\d+(:\d+)?'
+    - name: NUM                   # any remaining number (sizes, thread IDs, ...)
+      pattern: '\d+'
 
 features:
   type: event_count

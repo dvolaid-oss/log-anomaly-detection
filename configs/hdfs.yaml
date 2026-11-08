@@ -23,9 +23,16 @@ data:                             # Stage 1: where the raw data comes from
 grouping:                         # Stage 3: how log lines are grouped into samples
   method: session                 # HDFS: one sample per block_id (the adapter's group_id)
 
-parsing:                          # Stage 2: Drain log parser
-  sim_threshold: 0.4              # how similar two lines must be to share a template
+parsing:                          # Stage 2: masking + Drain log parser
+  sim_threshold: 0.4              # share of tokens that must match to join a template
   depth: 4                        # depth of Drain's parse tree
+  masks:                          # regexes replaced BEFORE Drain, in this order
+    - name: BLK                   # HDFS block ID(s): blk_-1608999687919862906, or a list of them
+      pattern: 'blk_-?\d+( +blk_-?\d+)*'   # a list of blocks is ONE variable
+    - name: IP                    # IPv4 with optional port, e.g. 10.250.19.102:54106
+      pattern: '(\d+\.){3}\d+(:\d+)?'
+    - name: NUM                   # any remaining number (sizes, thread IDs, ...)
+      pattern: '\d+'
 
 features:                         # Stage 3
   type: event_count               # event_count | tfidf

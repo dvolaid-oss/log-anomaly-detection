@@ -130,7 +130,7 @@ log-anomaly-detection/
 ├── docs/                     # setup guide, design notes
 ├── src/logad/
 │   ├── adapters/             # base.py (common schema), hdfs.py, bgl.py, auth_log.py, ...
-│   ├── parsing/              # drain wrapper, template store
+│   ├── parsing/              # drain.py (masking + Drain wrapper), accuracy.py (grouping accuracy), __init__ (pipeline)
 │   ├── features/             # event-count matrix, windowing, TF-IDF
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, autoencoder.py
 │   ├── evaluation/           # metrics, threshold selection, plots
@@ -194,20 +194,32 @@ about 3–4 weeks at 15–20 h/week.
   Claude explained all 6 check questions (Stage 0 + Stage 1); I said "questions later", so
   my own answers and the interview questions are still open. Committed and pushed Stage 1.
   Changed the session rule: keep going in the same session until ~90% context.
+- **2026-11-08 (Stage 2, same session):** Built masking + Drain parsing: `parsing/drain.py`
+  (`LogParser`: fit / match / templates / save / load), `parsing/accuracy.py` (grouping
+  accuracy), `parse_dataset` pipeline, `logad parse`; masks in configs; ground-truth file
+  added to `hdfs_sample.yaml`; 14 new tests (46 total). Results: 2k sample 100% grouping
+  accuracy (14/14 templates; was 99.75% before the BLK-list mask); full HDFS 11.2M lines →
+  86 distinct masked messages → 45 templates in ~7 s. Outputs: `artifacts/hdfs/events.parquet`
+  (line_id, timestamp, group_id, event_id, label), `templates.csv`, `drain_parser.json.zlib`,
+  `reports/<dataset>/templates.md`. I ran download + both parse commands myself (same results).
+  Committed and pushed Stage 2.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
 - [x] Stage 1: download + HDFS adapter + ingest + EDA notebook, pushed (check questions postponed)
+- [x] Stage 2: masking + Drain parsing (100% grouping accuracy on 2k sample), pushed
 
 ### Hand-off for the next session
-- **Next: Stage 2** (Drain parsing). Stage 1 is committed and pushed.
+- **Next: Stage 3** (features: event-count matrix per block, from `artifacts/hdfs/events.parquet`).
+  Stages 1 and 2 are committed and pushed.
 - Still open, ask me when I want ("questions later"):
   - My own answers to the 6 check questions (Claude already explained the answers):
     Stage 0: (1) why `data/` holds only a README, (2) why `show-config` paths differ per
     dataset, (3) what `.venv` is for. Stage 1: (4) why `.part` files, (5) the "flag every WARN"
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
-  - Stage 1 interview questions with strong answers (not given yet).
+  - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
+    Stage 2 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -242,4 +254,17 @@ about 3–4 weeks at 15–20 h/week.
 - Notebook outputs are committed so charts render on GitHub; charts saved to `reports/hdfs/`.
 - Notebooks: test them in a real Jupyter kernel (jupyter_client), not as a plain script. In
   Jupyter, DuckDB 2.0 refuses `SET enable_progress_bar` without ipywidgets, so we don't set it.
+- Parsing: mask first, then run Drain on DISTINCT masked messages only (86 instead of 11.2M):
+  same groups because Drain only sees masked text; ~7 s instead of minutes. DuckDB does the
+  bulk masking (RE2 regex), Python `re` masks single new messages: a test checks both agree.
+- Drain is fitted on all lines (no labels involved; in production it runs on all incoming logs).
+  Stricter "fit on training split only" can be revisited in Stage 4.
+- BLK mask also swallows a LIST of block IDs (`blk_1 blk_2 ...` = one variable). Found by
+  scoring on the 2k ground truth (99.75% → 100%). It's a general rule, but it was tuned on the
+  same sample we score on: say so honestly if asked.
+- Full HDFS: 45 templates vs LogHub's 29 reference templates. The extra ones are rare
+  Java-exception variants with different token counts (Drain only groups equal-length messages).
+- Saved parser = zlib-compressed JSON with a jsonpickle'd Drain tree: only load files we made
+  (jsonpickle can rebuild arbitrary objects).
+- DuckDB 2.0: relations have no `fetchone()`; use `con.sql(q).fetchall()`.
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

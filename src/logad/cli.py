@@ -4,6 +4,7 @@ Usage:
     logad show-config --config configs/hdfs.yaml
     logad download --config configs/hdfs.yaml
     logad ingest --config configs/hdfs.yaml
+    logad parse --config configs/hdfs.yaml
 
 Each pipeline stage is one command. Commands print a "not built yet" message until
 their stage is implemented.
@@ -20,6 +21,7 @@ from logad import __version__
 from logad.adapters import ingest_dataset
 from logad.config import load_config
 from logad.download import download_dataset
+from logad.parsing import parse_dataset
 
 app = typer.Typer(
     help="Log anomaly detection pipeline: download → ingest → parse → features → train → evaluate.",
@@ -94,8 +96,19 @@ def ingest(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 @app.command()
 def parse(config: ConfigPath = DEFAULT_CONFIG) -> None:
-    """Parse raw logs into templates and event IDs with Drain."""
-    _not_built_yet("parse", 2, config)
+    """Turn log messages into templates (event IDs) with masking + Drain."""
+    cfg = load_config(config)
+    typer.echo(f"[{cfg['dataset']}] Parsing {cfg['paths']['artifacts_dir']}/logs.parquet ...")
+    stats = parse_dataset(cfg)
+    typer.echo(f"  lines:                  {stats.lines:,}")
+    typer.echo(f"  distinct messages:      {stats.distinct_messages:,}")
+    typer.echo(f"  distinct after masking: {stats.distinct_masked:,}  (what Drain had to read)")
+    typer.echo(f"  templates found:        {stats.templates:,}")
+    if stats.grouping_accuracy is not None:
+        typer.echo(f"  ground-truth templates: {stats.true_templates:,}")
+        typer.echo(f"  grouping accuracy:      {stats.grouping_accuracy:.2%}")
+    typer.echo(f"Saved events, templates and parser in {cfg['paths']['artifacts_dir']}")
+    typer.echo(f"Template table: {cfg['paths']['reports_dir']}/templates.md")
 
 
 @app.command()
