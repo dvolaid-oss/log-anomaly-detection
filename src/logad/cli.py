@@ -7,13 +7,16 @@ Usage:
     logad parse --config configs/hdfs.yaml
     logad features --config configs/hdfs.yaml
     logad train --config configs/hdfs.yaml
+    logad evaluate --config configs/hdfs.yaml
+    logad run-all --config configs/hdfs.yaml     # all of the above, in order
 
-Each pipeline stage is one command. Commands print a "not built yet" message until
-their stage is implemented.
+Each pipeline step is one command, and each reads its settings from the config file.
 """
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
@@ -23,6 +26,7 @@ from logad import __version__
 from logad.adapters import ingest_dataset
 from logad.config import load_config
 from logad.download import download_dataset
+from logad.evaluation import evaluate_scores
 from logad.features import build_features
 from logad.models import train_models
 from logad.parsing import parse_dataset
@@ -37,11 +41,18 @@ DEFAULT_CONFIG = Path("configs/hdfs.yaml")
 ConfigPath = Annotated[Path, typer.Option("--config", "-c", help="Path to a YAML config file.")]
 
 
-def _not_built_yet(step: str, stage: int, config_path: Path) -> None:
-    """Validate the config, then explain that this step is still a placeholder."""
-    config = load_config(config_path)
-    typer.echo(f"[{config['dataset']}] '{step}' is not built yet (coming in Stage {stage}).")
-    raise typer.Exit(code=1)
+def friendly_errors(command: Callable) -> Callable:
+    """Show expected problems (missing files, bad config) as one clear line, not a traceback."""
+
+    @functools.wraps(command)
+    def wrapper(*args, **kwargs):
+        try:
+            return command(*args, **kwargs)
+        except (FileNotFoundError, ValueError) as error:
+            typer.secho(f"Error: {error}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from error
+
+    return wrapper
 
 
 def _version_callback(value: bool) -> None:
@@ -63,6 +74,7 @@ def main(
 
 
 @app.command("show-config")
+@friendly_errors
 def show_config(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Print the loaded config, to check which settings a run will use."""
     cfg = load_config(config)
@@ -73,6 +85,7 @@ def show_config(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 
 @app.command()
+@friendly_errors
 def download(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Download the raw dataset from official LogHub sources and verify checksums."""
     cfg = load_config(config)
@@ -81,6 +94,7 @@ def download(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 
 @app.command()
+@friendly_errors
 def ingest(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Convert raw logs to the common schema and save them as Parquet."""
     cfg = load_config(config)
@@ -99,6 +113,7 @@ def ingest(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 
 @app.command()
+@friendly_errors
 def parse(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Turn log messages into templates (event IDs) with masking + Drain."""
     cfg = load_config(config)
@@ -116,6 +131,7 @@ def parse(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 
 @app.command()
+@friendly_errors
 def features(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Build the event-count matrix (one row per block) with time-based splits."""
     cfg = load_config(config)
@@ -128,6 +144,7 @@ def features(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 
 @app.command()
+@friendly_errors
 def train(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Train the anomaly detectors on the train split (unsupervised: no labels)."""
     cfg = load_config(config)
@@ -153,15 +170,37 @@ def train(config: ConfigPath = DEFAULT_CONFIG) -> None:
 
 
 @app.command()
+@friendly_errors
 def evaluate(config: ConfigPath = DEFAULT_CONFIG) -> None:
-    """Evaluate detectors against the labels and write reports."""
-    _not_built_yet("evaluate", 5, config)
+    """Pick thresholds on validation, then measure every model ONCE on the test split."""
+    cfg = load_config(config)
+    typer.echo(f"[{cfg['dataset']}] Evaluating {cfg['paths']['artifacts_dir']}/scores.parquet ...")
+    results = evaluate_scores(cfg)
+    typer.echo("  Test split (thresholds chosen on validation; 95% bootstrap intervals)")
+    typer.echo(
+        f"  {'model':<18}{'precision':>10}{'recall':>8}{'F1':>7}  {'F1 95% CI':<13}"
+        f"{'caught':>7}{'false alarms':>13}{'missed':>7}"
+    )
+    for r in results.itertuples():
+        ci = f"{r.f1_ci[0]:.3f}-{r.f1_ci[1]:.3f}"
+        typer.echo(
+            f"  {r.model:<18}{r.precision:>10.3f}{r.recall:>8.3f}{r.f1:>7.3f}  {ci:<13}"
+            f"{r.tp:>7,}{r.fp:>13,}{r.fn:>7,}"
+        )
+    typer.echo(
+        f"Report: {cfg['paths']['reports_dir']}/results.md (+ pr_curves.png, "
+        "score_distributions.png)"
+    )
 
 
 @app.command("run-all")
+@friendly_errors
 def run_all(config: ConfigPath = DEFAULT_CONFIG) -> None:
     """Run every step in order: download → ingest → parse → features → train → evaluate."""
-    _not_built_yet("run-all", 5, config)
+    for step in (download, ingest, parse, features, train, evaluate):
+        typer.echo()
+        typer.secho(f"=== {step.__name__} ===", bold=True)
+        step(config)
 
 
 if __name__ == "__main__":

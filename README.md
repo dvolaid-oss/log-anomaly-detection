@@ -99,7 +99,29 @@ all 8 blocks containing them are anomalous); the baseline and PCA can.
 
 ## Results
 
-_Coming in Stage 5._
+Final evaluation on the **test split** (newest 20% of blocks: 115,012 blocks, 1.46% anomalous),
+**evaluated once**. Models never saw labels; each alert threshold was chosen on the
+validation split (best F1), the only place labels influence the system.
+Brackets: 95% bootstrap confidence intervals.
+
+| Model | Precision | Recall | F1 | Caught | False alarms | Missed |
+|-------|----------:|-------:|---:|-------:|-------------:|-------:|
+| Rule baseline | 0.714 | 0.724 | 0.719 [0.700–0.735] | 1,216 | 488 | 463 |
+| **PCA** | **0.997** | **0.964** | **0.980** [0.975–0.985] | 1,618 | **5** | 61 |
+| Isolation Forest | 0.352 | 0.866 | 0.501 [0.486–0.516] | 1,454 | 2,673 | 225 |
+
+- **PCA wins clearly:** 96% of anomalies caught with only 5 false alarms in 113,333 normal blocks.
+  Its interval doesn't overlap the others, so the gap is not luck.
+- **Isolation Forest's threshold didn't survive the move to new data:** F1 0.825 on validation
+  but 0.501 on test. A big group of normal blocks scores just below its threshold, and in the
+  test period many of them land just above it (2,673 false alarms). A fragile threshold under
+  time drift is a real production risk, and exactly what a time-based split is meant to expose.
+- **The simple rule baseline beats Isolation Forest on F1** (0.719 vs 0.501). Always build one.
+
+![Precision-recall curves](reports/hdfs/pr_curves.png)
+
+Full report: [reports/hdfs/results.md](reports/hdfs/results.md) ·
+score distributions: [reports/hdfs/score_distributions.png](reports/hdfs/score_distributions.png)
 
 ## Quickstart (Windows, PowerShell)
 
@@ -119,6 +141,9 @@ logad ingest   --config configs/hdfs.yaml   # raw logs → artifacts/hdfs/logs.p
 logad parse    --config configs/hdfs.yaml   # messages → templates, artifacts/hdfs/events.parquet
 logad features --config configs/hdfs.yaml   # event-count matrix per block + time-based splits
 logad train    --config configs/hdfs.yaml   # fit baseline, PCA, Isolation Forest; score all blocks
+logad evaluate --config configs/hdfs.yaml   # thresholds on validation, final metrics on test
+
+logad run-all  --config configs/hdfs.yaml   # or: every step above in one command
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -143,7 +168,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 2 | Parsing with Drain | ✅ |
 | 3 | Features (event counts, TF-IDF) | ✅ |
 | 4 | Models: baseline, PCA, Isolation Forest | ✅ |
-| 5 | Evaluation + results table | ⏳ |
+| 5 | Evaluation + results table | ✅ |
 | 6 | Autoencoder (PyTorch) | ⏳ |
 | 7 | Explanations + Streamlit dashboard | ⏳ |
 | 8 | BGL (time windows) | ⏳ |

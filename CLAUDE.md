@@ -133,7 +133,7 @@ log-anomaly-detection/
 │   ├── parsing/              # drain.py (masking + Drain wrapper), accuracy.py (grouping accuracy), __init__ (pipeline)
 │   ├── features/             # __init__ (event-count matrix + time splits), transform.py (TF-IDF, scaling)
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, (autoencoder.py), __init__ (registry + train_models)
-│   ├── evaluation/           # metrics, threshold selection, plots
+│   ├── evaluation/           # metrics.py (thresholds, P/R/F1, bootstrap CI), plots.py, __init__ (evaluate_scores + results.md)
 │   ├── explain/              # anomaly explanations
 │   ├── config.py             # YAML config loading + validation
 │   ├── download.py           # safe downloads: host allowlist, checksums, zip-slip check
@@ -218,6 +218,16 @@ about 3–4 weeks at 15–20 h/week.
   baseline ROC 0.889 / PR 0.810, PCA 0.981 / 0.859 (5 components), IForest 0.987 / 0.807;
   each fits in < 1 s. Test split NOT looked at yet. I ran `logad train` myself (same numbers).
   Committed and pushed Stage 4.
+- **2026-11-09 (Stage 5, same session, next morning):** Built `evaluation/`: best-F1 threshold
+  on validation, test metrics once, bootstrap 95% CIs (multinomial trick), PR-curve and
+  score-distribution charts (dataviz palette validated: blue/orange/aqua, aqua needs labels),
+  `thresholds.json`, `reports/hdfs/results.md`; `logad evaluate`, `logad run-all`; all CLI
+  commands show one-line errors (`friendly_errors`); `predict` now alerts on score >= threshold.
+  10 new tests (86 total). **TEST SPLIT EVALUATED ONCE on 2026-11-09:** F1 baseline 0.719
+  [0.700–0.735], PCA 0.980 [0.975–0.985] (precision 0.997, recall 0.964, 5 false alarms),
+  IForest 0.501 [0.486–0.516] (validation F1 0.825 → threshold didn't transfer; 2,673 FAs).
+  VS Code wasn't open; Claude started it (`D:\Tools\VSCode\Code.exe <project>`). I ran
+  `logad evaluate` myself (worked). Committed and pushed Stage 5.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
@@ -225,11 +235,15 @@ about 3–4 weeks at 15–20 h/week.
 - [x] Stage 2: masking + Drain parsing (100% grouping accuracy on 2k sample), pushed
 - [x] Stage 3: event-count matrix + time splits + TF-IDF/scaling transformer, pushed
 - [x] Stage 4: model interface + baseline, PCA, Isolation Forest + `logad train`, pushed
+- [x] Stage 5: evaluation (thresholds on validation, test once, bootstrap CIs, charts, run-all), pushed
 
 ### Hand-off for the next session
-- **Next: Stage 5** (evaluation): read `artifacts/<ds>/scores.parquet`; pick each model's
-  threshold on the VALIDATION split (e.g. best F1), then report precision / recall / F1 on the
-  TEST split once; PR curves; `reports/<ds>/results.md`; `logad evaluate`.
+- **Next: Stage 6** (PyTorch autoencoder, compared against the
+  others; first install of torch CPU → pin it, keep caches on D:).
+- **RULE: the HDFS test split has been used.** Never tune anything (models, thresholds,
+  features, masks) based on test results. Any new model (e.g. Stage 6 autoencoder) picks its
+  threshold on validation and is evaluated on test once; report it as an addition, and never
+  re-tune the existing models after seeing the test numbers.
 - Still open, ask me when I want ("questions later"):
   - My own answers to the 6 check questions (Claude already explained the answers):
     Stage 0: (1) why `data/` holds only a README, (2) why `show-config` paths differ per
@@ -237,7 +251,7 @@ about 3–4 weeks at 15–20 h/week.
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
   - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
-    Stage 2, 3 and 4 check questions (not asked yet).
+    Stage 2, 3, 4 and 5 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -305,4 +319,12 @@ about 3–4 weeks at 15–20 h/week.
 - Quick check after training = validation ROC-AUC + PR-AUC (threshold-free). Labels read only
   for reporting. The test split is not looked at until Stage 5's final evaluation.
 - Models saved with joblib (pickle): only load files this project created.
+- Evaluation: threshold = best F1 on VALIDATION (alert when score >= threshold); test used ONCE.
+  Labels influence the system only through these thresholds (one number per model).
+- Bootstrap CIs via multinomial resampling of the confusion counts (equivalent to resampling
+  blocks, much faster). Unpaired per-model intervals: non-overlap = clearly different.
+- Isolation Forest's validation→test drop is reported as a finding (threshold fragility under
+  time drift), NOT fixed by re-tuning on test.
+- Charts: palette blue #2a78d6 / orange #eb6834 / aqua #1baf7a (fixed order, validated for
+  colour-blindness); line styles + direct labels as second cue; text in neutral ink.
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

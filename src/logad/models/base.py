@@ -41,8 +41,8 @@ class AnomalyDetector(ABC):
         return np.asarray(self._score(self.transformer.transform(X)), dtype=float)
 
     def predict(self, X, threshold: float) -> np.ndarray:
-        """1 where the score is above `threshold`, else 0 (thresholds are chosen in Stage 5)."""
-        return (self.score(X) > threshold).astype(int)
+        """1 where score >= `threshold`, else 0 (thresholds are chosen by `logad evaluate`)."""
+        return (self.score(X) >= threshold).astype(int)
 
     @abstractmethod
     def _fit(self, X: np.ndarray) -> None: ...
