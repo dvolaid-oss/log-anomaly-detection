@@ -257,6 +257,9 @@ about 3–4 weeks at 15–20 h/week.
   Deployed on Streamlit Community Cloud myself (free, no card): https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
   (I skipped the Python-version setting; the default works, since numpy 2.5 needs >= 3.12).
   Claude checked the live app: 300 blocks, 27 flagged, 27/30 caught, 0 false alarms.
+  During deploy, Streamlit committed `.devcontainer/devcontainer.json` (Codespaces, Python
+  3.11, CORS/XSRF off) in my name; Claude rebased onto it, and at my request removed it.
+  Note: Streamlit's GitHub app can push to this repo, so always `git fetch` before pushing.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
