@@ -16,6 +16,7 @@ import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from logad.features import load_features
+from logad.models.autoencoder import AutoencoderDetector  # imports torch only when used
 from logad.models.base import AnomalyDetector
 from logad.models.baseline import RareEventDetector
 from logad.models.iforest import IsolationForestDetector
@@ -25,6 +26,7 @@ MODELS: dict[str, type[AnomalyDetector]] = {
     "baseline": RareEventDetector,
     "pca": PCADetector,
     "isolation_forest": IsolationForestDetector,
+    "autoencoder": AutoencoderDetector,  # optional: needs requirements-torch.txt
 }
 MODELS_DIR = "models"
 SCORES_FILE = "scores.parquet"

@@ -89,8 +89,9 @@ every block. All models share one interface (`fit`, `score`, `predict`), so they
 | Model | Idea | Fit time | Validation ROC-AUC | Validation PR-AUC |
 |-------|------|---------:|-------------------:|------------------:|
 | Rule baseline | score = rarity of the block's rarest event | 0.1 s | 0.889 | 0.810 |
-| PCA (Xu et al. 2009) | error when rebuilding the block from 5 "normal" patterns (TF-IDF input) | 0.6 s | 0.981 | **0.859** |
-| Isolation Forest | how quickly random splits isolate the block | 0.6 s | **0.987** | 0.807 |
+| PCA (Xu et al. 2009) | error when rebuilding the block from 5 "normal" patterns (TF-IDF input) | 0.6 s | 0.981 | 0.859 |
+| Isolation Forest | how quickly random splits isolate the block | 0.6 s | 0.987 | 0.807 |
+| Autoencoder (PyTorch) | error when a 45 → 32 → 8 → 32 → 45 network rebuilds the block | 16 s | **0.996** | **0.872** |
 
 PR-AUC of random guessing is 0.035 (the share of anomalies). These are quick, threshold-free
 checks on the validation split; the test split stays untouched until the final evaluation.
@@ -109,6 +110,7 @@ Brackets: 95% bootstrap confidence intervals.
 | Rule baseline | 0.714 | 0.724 | 0.719 [0.700–0.735] | 1,216 | 488 | 463 |
 | **PCA** | **0.997** | **0.964** | **0.980** [0.975–0.985] | 1,618 | **5** | 61 |
 | Isolation Forest | 0.352 | 0.866 | 0.501 [0.486–0.516] | 1,454 | 2,673 | 225 |
+| Autoencoder (PyTorch) | 0.705 | 0.724 | 0.714 [0.696–0.731] | 1,216 | 509 | 463 |
 
 - **PCA wins clearly:** 96% of anomalies caught with only 5 false alarms in 113,333 normal blocks.
   Its interval doesn't overlap the others, so the gap is not luck.
@@ -117,6 +119,13 @@ Brackets: 95% bootstrap confidence intervals.
   test period many of them land just above it (2,673 false alarms). A fragile threshold under
   time drift is a real production risk, and exactly what a time-based split is meant to expose.
 - **The simple rule baseline beats Isolation Forest on F1** (0.719 vs 0.501). Always build one.
+- **The autoencoder (a small neural network) didn't beat PCA.** It had the best validation
+  scores (ROC-AUC 0.996), but on test it missed 463 anomalies, and they are all the *same*
+  2-line block: a write that died right after starting ("receiving block" + "allocate block").
+  It rebuilds such tiny blocks easily, so they look normal to it (the rule baseline misses the
+  same 463). PCA catches all of them: it learned that normal blocks contain events in fixed
+  proportions, so it also notices **expected events that are missing**, not just unusual ones
+  that are present. The simpler, linear model wins here.
 
 ![Precision-recall curves](reports/hdfs/pr_curves.png)
 
@@ -140,7 +149,8 @@ logad download --config configs/hdfs.yaml   # 187 MB from Zenodo, checksum-verif
 logad ingest   --config configs/hdfs.yaml   # raw logs → artifacts/hdfs/logs.parquet (~1 min)
 logad parse    --config configs/hdfs.yaml   # messages → templates, artifacts/hdfs/events.parquet
 logad features --config configs/hdfs.yaml   # event-count matrix per block + time-based splits
-logad train    --config configs/hdfs.yaml   # fit baseline, PCA, Isolation Forest; score all blocks
+pip install -r requirements-torch.txt      # optional: CPU-only PyTorch for the autoencoder
+logad train    --config configs/hdfs.yaml   # fit baseline, PCA, Isolation Forest, autoencoder
 logad evaluate --config configs/hdfs.yaml   # thresholds on validation, final metrics on test
 
 logad run-all  --config configs/hdfs.yaml   # or: every step above in one command
@@ -169,7 +179,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 3 | Features (event counts, TF-IDF) | ✅ |
 | 4 | Models: baseline, PCA, Isolation Forest | ✅ |
 | 5 | Evaluation + results table | ✅ |
-| 6 | Autoencoder (PyTorch) | ⏳ |
+| 6 | Autoencoder (PyTorch) | ✅ |
 | 7 | Explanations + Streamlit dashboard | ⏳ |
 | 8 | BGL (time windows) | ⏳ |
 | 9 | Security logs: SSH brute-force detection | ⏳ |

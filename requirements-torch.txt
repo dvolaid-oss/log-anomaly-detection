@@ -1,0 +1,5 @@
+# Optional: PyTorch for the autoencoder (Stage 6). CPU-only build (~124 MB download).
+#   pip install -r requirements-torch.txt
+# The CPU builds come from PyTorch's official index; "+cpu" pins exactly that build.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu

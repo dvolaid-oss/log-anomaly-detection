@@ -3,7 +3,8 @@
 Style rules (from the project's chart guidelines): one fixed colour per model in a fixed
 order, thin 2px lines, a light grid, a legend plus direct labels so identity never depends
 on colour alone, and a different line style per model as a second cue. The colours were
-checked for colour-blind separation; aqua is light, so labels/tables back it up.
+checked for colour-blind separation; aqua and yellow are light, so labels/tables back them up.
+More models than colours would need a new design (never generated extra hues).
 """
 
 from __future__ import annotations
@@ -22,18 +23,24 @@ SURFACE = "#fcfcfb"
 TEXT = "#2b2b29"
 MUTED = "#6f6e69"
 GRID = "#e4e3df"
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a"]  # blue, orange, aqua: fixed order
-LINESTYLES = ["-", "--", ":"]
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]  # blue, orange, aqua, yellow: fixed order
+LINESTYLES = ["-", "--", ":", "-."]
 NORMAL, ANOMALY = SERIES[0], SERIES[1]
 
-LABELS = {"baseline": "Rule baseline", "pca": "PCA", "isolation_forest": "Isolation Forest"}
-SHORT = {"baseline": "Baseline", "pca": "PCA", "isolation_forest": "IForest"}
+LABELS = {
+    "baseline": "Rule baseline",
+    "pca": "PCA",
+    "isolation_forest": "Isolation Forest",
+    "autoencoder": "Autoencoder",
+}
+SHORT = {"baseline": "Baseline", "pca": "PCA", "isolation_forest": "IForest", "autoencoder": "AE"}
 # Where each model's threshold label sits relative to its dot (points), chosen to stay
 # clear of the curves: (dx, dy, horizontal alignment).
 LABEL_OFFSETS = {
     "baseline": (8, -4, "left"),
     "pca": (-10, -16, "right"),
     "isolation_forest": (-10, -44, "right"),
+    "autoencoder": (-10, -30, "right"),
 }
 
 
@@ -107,9 +114,9 @@ def plot_pr_curves(y_test, scores: dict, results: dict, base_rate: float, path: 
     ax.set_xlabel("Recall: share of anomalies caught")
     ax.set_ylabel("Precision: share of alerts that are real")
     ax.set_title("Precision vs recall on the test split (dots = chosen thresholds)", loc="left")
-    # the middle-left of the plot is empty (curves hug the top and right edges)
+    # lower-left middle is empty (curves hug the top and right edges)
     ax.legend(
-        loc="center left", bbox_to_anchor=(0.02, 0.45), frameon=False, fontsize=9, labelcolor=TEXT
+        loc="center left", bbox_to_anchor=(0.02, 0.30), frameon=False, fontsize=9, labelcolor=TEXT
     )
     return _save(fig, path)
 
@@ -117,7 +124,7 @@ def plot_pr_curves(y_test, scores: dict, results: dict, base_rate: float, path: 
 def plot_score_distributions(y_test, scores: dict, results: dict, path: Path) -> Path:
     """Per model: score histograms of normal vs anomalous test blocks + the threshold."""
     y = np.asarray(y_test, dtype=bool)
-    fig, axes = _figure(1, len(scores), figsize=(4.2 * len(scores), 3.8))
+    fig, axes = _figure(1, len(scores), figsize=(4.0 * len(scores), 3.8))
     for ax, (model, s) in zip(np.atleast_1d(axes), scores.items(), strict=True):
         _style(ax)
         s = np.asarray(s)

@@ -1,6 +1,6 @@
 # Runtime dependencies, pinned to exact versions for reproducible installs.
 # pyproject.toml reads this file, so versions are defined in one place only.
-# PyTorch is added in Stage 6.
+# PyTorch (autoencoder only) is optional: see requirements-torch.txt.
 
 # Data handling
 numpy==2.5.4

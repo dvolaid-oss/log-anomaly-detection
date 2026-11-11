@@ -49,3 +49,12 @@ models:                           # Stage 4: fitted on the TRAIN split only, nev
   isolation_forest:               # score = how quickly random splits isolate the block
     transform: event_count
     n_estimators: 100
+  autoencoder:                    # Stage 6, needs PyTorch (requirements-torch.txt)
+    transform: tfidf              # score = error rebuilding the block (45 → 32 → 8 → 32 → 45)
+    scale: true                   # neural networks need scaled inputs
+    hidden: 32
+    bottleneck: 8
+    epochs: 30                    # upper limit; early stopping usually ends sooner
+    batch_size: 512
+    learning_rate: 0.001
+    patience: 3                   # stop after 3 epochs without improvement on held-out train

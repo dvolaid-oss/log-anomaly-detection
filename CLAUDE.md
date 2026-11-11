@@ -228,6 +228,18 @@ about 3–4 weeks at 15–20 h/week.
   IForest 0.501 [0.486–0.516] (validation F1 0.825 → threshold didn't transfer; 2,673 FAs).
   VS Code wasn't open; Claude started it (`D:\Tools\VSCode\Code.exe <project>`). I ran
   `logad evaluate` myself (worked). Committed and pushed Stage 5.
+- **2026-11-11 (Stage 6, same session):** I paused once ("wait") before the install, then said
+  to continue. Installed PyTorch 2.14.1+cpu into `.venv` (124 MB download, 536 MB on D:;
+  optional `requirements-torch.txt`, CI installs it). Built `models/autoencoder.py`
+  (45→32→8→32→45, ReLU, MSE, Adam, early stopping on 10% of TRAIN, lazy torch import);
+  autoencoder added to `configs/hdfs.yaml` only (sample config stays torch-free). 6 new tests
+  (92 total). Validation: ROC 0.996 / PR 0.872 (best), 16 s, 29 epochs. **Test evaluated once
+  (2026-11-11):** F1 0.714 [0.696–0.731], precision 0.705, recall 0.724; the 3 existing rows
+  are byte-identical to before. Analysis (no tuning): all 463 missed anomalies are the same
+  2-line block (E1 + E2: write died after allocation); AE and baseline both miss exactly these,
+  PCA catches all 463 (fixed-proportion structure → notices missing events).
+  VS Code was closed again; Claude launched it for me. I ran `logad train` + `logad evaluate`
+  myself (same numbers). Committed and pushed Stage 6.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
@@ -236,10 +248,15 @@ about 3–4 weeks at 15–20 h/week.
 - [x] Stage 3: event-count matrix + time splits + TF-IDF/scaling transformer, pushed
 - [x] Stage 4: model interface + baseline, PCA, Isolation Forest + `logad train`, pushed
 - [x] Stage 5: evaluation (thresholds on validation, test once, bootstrap CIs, charts, run-all), pushed
+- [x] Stage 6: PyTorch autoencoder (test F1 0.714; PCA still best at 0.980), pushed
 
 ### Hand-off for the next session
-- **Next: Stage 6** (PyTorch autoencoder, compared against the
-  others; first install of torch CPU → pin it, keep caches on D:).
+- **Next: Stage 7** (explanations module + Streamlit dashboard + deploy on
+  Streamlit Community Cloud; use PCA as the main model, no torch needed online).
+- Deleted (with my OK, 2026-11-11) an old 16.6 MB pip cache on C: (`%LOCALAPPDATA%\pip\cache`,
+  from 2026-11-08, before the D: cache setting).
+- If VS Code is closed when I need to run something, Claude launches it:
+  `Start-Process D:\Tools\VSCode\Code.exe "D:\Projects\log-anomaly-detection"`.
 - **RULE: the HDFS test split has been used.** Never tune anything (models, thresholds,
   features, masks) based on test results. Any new model (e.g. Stage 6 autoencoder) picks its
   threshold on validation and is evaluated on test once; report it as an addition, and never
@@ -251,7 +268,7 @@ about 3–4 weeks at 15–20 h/week.
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
   - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
-    Stage 2, 3, 4 and 5 check questions (not asked yet).
+    Stage 2–6 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -327,4 +344,14 @@ about 3–4 weeks at 15–20 h/week.
   time drift), NOT fixed by re-tuning on test.
 - Charts: palette blue #2a78d6 / orange #eb6834 / aqua #1baf7a (fixed order, validated for
   colour-blindness); line styles + direct labels as second cue; text in neutral ink.
+  Stage 6 added slot 4 yellow #eda100 (4-colour set re-validated). More models than 4 → redesign.
+- PyTorch is OPTIONAL (`requirements-torch.txt`, `--extra-index-url` CPU index, pinned
+  `torch==2.14.1+cpu`; chose 2.14.1 over brand-new 2.15.0 for stability). The autoencoder
+  module imports torch lazily, so everything else runs without it.
+- Autoencoder: tfidf + StandardScaler input; early stopping on 10% of TRAIN (validation stays
+  clean for thresholds); score = per-block MSE. Unlike Isolation Forest it DOES flag events
+  never seen in training.
+- Finding from test analysis (not used for tuning): "missing-event" anomalies (2-line blocks,
+  E1+E2) fool the AE and the baseline but not PCA. Any fix (e.g. a block-length or
+  expected-events feature) must be validated on new data (BGL, Stage 8), not on this test set.
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.
