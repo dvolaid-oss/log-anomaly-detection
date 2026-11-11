@@ -1,0 +1,7 @@
+# Streamlit settings for the dashboard (read locally and on Streamlit Community Cloud).
+
+[server]
+maxUploadSize = 20          # MB: uploaded logs are processed in memory, never saved
+
+[browser]
+gatherUsageStats = false    # no usage telemetry

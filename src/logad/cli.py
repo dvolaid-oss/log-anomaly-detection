@@ -28,6 +28,7 @@ from logad.config import load_config
 from logad.download import download_dataset
 from logad.evaluation import evaluate_scores
 from logad.features import build_features
+from logad.inference import export_bundle, export_demo
 from logad.models import train_models
 from logad.parsing import parse_dataset
 
@@ -190,6 +191,22 @@ def evaluate(config: ConfigPath = DEFAULT_CONFIG) -> None:
     typer.echo(
         f"Report: {cfg['paths']['reports_dir']}/results.md (+ pr_curves.png, "
         "score_distributions.png)"
+    )
+
+
+@app.command("export-app")
+@friendly_errors
+def export_app(
+    config: ConfigPath = DEFAULT_CONFIG,
+    out: Annotated[Path, typer.Option(help="Folder of the dashboard.")] = Path("app"),
+) -> None:
+    """Write the dashboard's model bundle (app/model) and demo log (app/demo)."""
+    cfg = load_config(config)
+    bundle_dir = export_bundle(cfg, out / "model")
+    typer.echo(f"Model bundle: {bundle_dir}")
+    log_path, labels_path = export_demo(cfg, out / "demo")
+    typer.echo(
+        f"Demo log: {log_path} ({log_path.stat().st_size / 1e6:.2f} MB), labels: {labels_path}"
     )
 
 

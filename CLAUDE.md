@@ -134,11 +134,12 @@ log-anomaly-detection/
 │   ├── features/             # __init__ (event-count matrix + time splits), transform.py (TF-IDF, scaling)
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, (autoencoder.py), __init__ (registry + train_models)
 │   ├── evaluation/           # metrics.py (thresholds, P/R/F1, bootstrap CI), plots.py, __init__ (evaluate_scores + results.md)
-│   ├── explain/              # anomaly explanations
+│   ├── explain/              # Explainer: rare-event + missing/extra-event reasons (from PCA)
+│   ├── inference.py          # model bundle export/load, score raw logs, demo export
 │   ├── config.py             # YAML config loading + validation
 │   ├── download.py           # safe downloads: host allowlist, checksums, zip-slip check
 │   └── cli.py                # `logad download | ingest | parse | features | train | evaluate | run-all`
-├── app/dashboard.py          # Streamlit app
+├── app/dashboard.py          # Streamlit app (+ app/model bundle, app/demo log: committed)
 ├── notebooks/01_exploration.ipynb
 ├── reports/                  # generated charts + results.md
 ├── tests/                    # pytest
@@ -240,6 +241,19 @@ about 3–4 weeks at 15–20 h/week.
   PCA catches all 463 (fixed-proportion structure → notices missing events).
   VS Code was closed again; Claude launched it for me. I ran `logad train` + `logad evaluate`
   myself (same numbers). Committed and pushed Stage 6.
+- **2026-11-11 (Stage 7, same session):** Built `explain/` (rare events from training shares;
+  missing/extra events from PCA residuals converted back to counts), `inference.py`
+  (`export_bundle` → `app/model/` 12 KB: pca.joblib + parser + bundle.json; `analyze_lines`
+  scores raw HDFS lines; `export_demo` → `app/demo/` 300 random TEST-split blocks, 270 normal
+  + 30 anomalous, 0.61 MB + labels), `logad export-app`, Streamlit `app/dashboard.py` (demo or
+  upload ≤ 20 MB in memory, metrics, Altair score histogram, flagged-blocks table with row
+  selection, reasons, found-vs-expected table, block lines), `.streamlit/config.toml`,
+  `docs/deploy.md`. 12 new tests incl. Streamlit AppTest (104 total). Demo: 27/30 caught,
+  0 false alarms, 0.06 s. Checked in the browser (desktop + narrow width), fixed truncated
+  metric and reasons (now a markdown list with escaping). Preview server config: added a
+  `logad-dashboard` entry to `D:\Projects\p1\.claude\launch.json` (the preview tool reads p1's
+  file; nightfall entry untouched); local `.claude/` in this repo is gitignored.
+  I confirmed the app ran fine for me. Committed and pushed Stage 7.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
@@ -249,10 +263,13 @@ about 3–4 weeks at 15–20 h/week.
 - [x] Stage 4: model interface + baseline, PCA, Isolation Forest + `logad train`, pushed
 - [x] Stage 5: evaluation (thresholds on validation, test once, bootstrap CIs, charts, run-all), pushed
 - [x] Stage 6: PyTorch autoencoder (test F1 0.714; PCA still best at 0.980), pushed
+- [x] Stage 7: explanations + Streamlit dashboard + export-app, pushed (online deploy pending)
 
 ### Hand-off for the next session
-- **Next: Stage 7** (explanations module + Streamlit dashboard + deploy on
-  Streamlit Community Cloud; use PCA as the main model, no torch needed online).
+- **Stage 7 is pushed; deploy pending.** Still to do: I deploy on Streamlit Community Cloud following
+  `docs/deploy.md` (my GitHub login: Claude can't create accounts or sign in), and Claude
+  puts the live URL in the README "Live demo" line. Then **Stage 8** (BGL adapter with
+  time-window features; also a chance to test a "missing events"/block-length idea on new data).
 - Deleted (with my OK, 2026-11-11) an old 16.6 MB pip cache on C: (`%LOCALAPPDATA%\pip\cache`,
   from 2026-11-08, before the D: cache setting).
 - If VS Code is closed when I need to run something, Claude launches it:
@@ -268,7 +285,7 @@ about 3–4 weeks at 15–20 h/week.
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
   - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
-    Stage 2–6 check questions (not asked yet).
+    Stage 2–7 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -354,4 +371,14 @@ about 3–4 weeks at 15–20 h/week.
 - Finding from test analysis (not used for tuning): "missing-event" anomalies (2-line blocks,
   E1+E2) fool the AE and the baseline but not PCA. Any fix (e.g. a block-length or
   expected-events feature) must be validated on new data (BGL, Stage 8), not on this test set.
+- Dashboard runs PCA only (best model; no torch online). The model bundle (12 KB, created by
+  us) and a 0.61 MB demo log ARE committed: deliberate, documented exception to "never commit
+  raw data" (public LogHub data, credited in `app/demo/README.md`, nothing personal).
+- Demo blocks come from the TEST split (never trained on), random with seed 42: the demo
+  shows honest behaviour including misses (27/30 caught).
+- Dashboard safety: uploads read with `getvalue()` (memory only), 20 MB cap in
+  `.streamlit/config.toml`, telemetry off, log text only in tables or markdown-escaped lists.
+- Streamlit Cloud only installs requirements.txt, so the app adds `src/` to `sys.path` when
+  `logad` isn't installed.
+- Explanation text uses "x" not "×" (Windows console cp1251 can't print ×).
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

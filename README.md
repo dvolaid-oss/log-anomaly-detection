@@ -11,6 +11,8 @@ It is benchmarked on the public [LogHub](https://github.com/logpai/loghub) datas
 (HDFS, BGL) and extended to **security logs** (SSH brute-force detection).
 
 > 🚧 **Work in progress.** See the [roadmap](#roadmap) for status.
+>
+> **Live demo:** _coming soon_ (Streamlit dashboard, see [Dashboard](#dashboard)).
 
 ## How it works
 
@@ -129,6 +131,23 @@ Brackets: 95% bootstrap confidence intervals.
 
 ![Precision-recall curves](reports/hdfs/pr_curves.png)
 
+## Dashboard
+
+A Streamlit app (`app/dashboard.py`) lets anyone try the detector: upload an HDFS log, or use
+the built-in demo (300 blocks the model never trained on). For every flagged block it shows
+**why**, in plain words:
+
+- 🔸 Contains E18 `Receiving empty packet for block <BLK>`: seen in 0.069% of training blocks.
+- 🕳️ Missing: expected ~2.3x E3 `PacketResponder <NUM> for block <BLK> <*>`, found 0.
+  (a write that died right after starting: the kind of anomaly only PCA catches)
+
+plus event counts (found vs expected) and the block's own log lines. On the demo it catches
+27 of 30 anomalies with 0 false alarms. Uploads are processed in memory only (20 MB limit).
+
+```powershell
+streamlit run app/dashboard.py        # local; deploy guide: docs/deploy.md
+```
+
 Full report: [reports/hdfs/results.md](reports/hdfs/results.md) ·
 score distributions: [reports/hdfs/score_distributions.png](reports/hdfs/score_distributions.png)
 
@@ -154,6 +173,7 @@ logad train    --config configs/hdfs.yaml   # fit baseline, PCA, Isolation Fores
 logad evaluate --config configs/hdfs.yaml   # thresholds on validation, final metrics on test
 
 logad run-all  --config configs/hdfs.yaml   # or: every step above in one command
+logad export-app --config configs/hdfs.yaml # model bundle + demo log for the dashboard
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -180,7 +200,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 4 | Models: baseline, PCA, Isolation Forest | ✅ |
 | 5 | Evaluation + results table | ✅ |
 | 6 | Autoencoder (PyTorch) | ✅ |
-| 7 | Explanations + Streamlit dashboard | ⏳ |
+| 7 | Explanations + Streamlit dashboard | ✅ (deploy pending) |
 | 8 | BGL (time windows) | ⏳ |
 | 9 | Security logs: SSH brute-force detection | ⏳ |
 | 10 | Polish | ⏳ |

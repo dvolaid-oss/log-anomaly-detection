@@ -10,6 +10,8 @@ artifacts/*
 # Any stray log files (e.g. personal logs) anywhere except small test fixtures
 *.log
 !tests/fixtures/**/*.log
+# Deliberate exception: small public HDFS demo log for the dashboard (see app/demo/README.md)
+!app/demo/hdfs_demo.log
 
 # --- Python -----------------------------------------------------------------
 .venv/
@@ -38,3 +40,6 @@ htmlcov/
 # OS junk
 Thumbs.db
 .DS_Store
+
+# Local Claude Code tool settings (dev server config for the preview browser)
+.claude/
