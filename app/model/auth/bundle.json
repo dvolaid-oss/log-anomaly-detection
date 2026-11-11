@@ -1,0 +1,64 @@
+{
+ "dataset": "auth",
+ "model": "autoencoder",
+ "threshold": 0.008782295510172844,
+ "validation_f1": 0.6346863468634687,
+ "grouping": {
+  "method": "session_window",
+  "window_minutes": 10
+ },
+ "adapter_options": {
+  "year": 2026
+ },
+ "events": [
+  "E1",
+  "E2",
+  "E3",
+  "E4",
+  "E5",
+  "E6",
+  "E8",
+  "E9",
+  "E11",
+  "E12"
+ ],
+ "templates": {
+  "E1": "Failed password for <*> from <IP> port <NUM> ssh<NUM>",
+  "E8": "Received disconnect from <IP> port <NUM>:<NUM>: disconnected by user",
+  "E7": "pam_unix(sshd:session): session opened for user <*> by (uid=<NUM>)",
+  "E6": "Accepted <*> for <*> from <IP> port <NUM> ssh<NUM>",
+  "E10": "pam_unix(sshd:session): session closed for user <*>",
+  "E9": "Disconnected from user <*> <IP> port <NUM>",
+  "E3": "Invalid user <*> from <IP> port <NUM>",
+  "E4": "Failed password for invalid user <*> from <IP> port <NUM> ssh<NUM>",
+  "E5": "Connection closed by invalid user <*> <IP> port <NUM> [preauth]",
+  "E2": "Connection closed by <IP> port <NUM> [preauth]",
+  "E11": "error: maximum authentication attempts exceeded for <*> from <IP> port <NUM> ssh<NUM> [preauth]",
+  "E12": "Disconnecting authenticating user <*> <IP> port <NUM>: Too many authentication failures [preauth]"
+ },
+ "train_share": [
+  0.19626168,
+  0.07668055,
+  0.13894832,
+  0.13894832,
+  0.13883572,
+  0.36043238,
+  0.35975678,
+  0.35975678,
+  0.0014638,
+  0.0014638
+ ],
+ "train_p99": [
+  4.0,
+  1.0,
+  3.0,
+  3.0,
+  3.0,
+  1.0,
+  1.0,
+  1.0,
+  0.0,
+  0.0
+ ],
+ "train_groups": 8881
+}

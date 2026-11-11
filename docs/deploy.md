@@ -3,7 +3,8 @@
 **Live app:** https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
 
 The dashboard (`app/dashboard.py`) runs online straight from this GitHub repo. Everything it
-needs is committed: the model bundle (`app/model/`, 12 KB) and the demo log (`app/demo/`).
+needs is committed: one model bundle per tab (`app/model/hdfs/`, `app/model/auth/`, a few
+KB each) and the demo logs (`app/demo/`).
 No dataset download, no PyTorch.
 
 ## Run it locally first
@@ -38,5 +39,5 @@ It opens at http://localhost:8501. Stop it with `Ctrl+C` in the terminal.
 - **Privacy:** uploaded logs are processed in memory and never stored, but they are sent to
   Streamlit's servers. Don't upload private company logs to the public app; run it locally
   for those.
-- **Updating the model:** rerun the pipeline, then `logad export-app --config configs/hdfs.yaml`
-  and commit `app/model/` (and `app/demo/` if it changed).
+- **Updating a model:** rerun the pipeline, then `logad export-app --config configs/hdfs.yaml`
+  (or `configs/auth.yaml`) and commit `app/model/` and `app/demo/`.

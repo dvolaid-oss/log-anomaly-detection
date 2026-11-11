@@ -64,13 +64,20 @@ def group_expression(config: dict[str, Any]) -> str:
     method = grouping.get("method", "session")
     if method == "session":
         return "group_id"
-    if method == "time_window":
+    if method in ("time_window", "session_window"):
         minutes = int(grouping["window_minutes"])
         if minutes <= 0:
             raise ValueError("grouping.window_minutes must be a positive number of minutes")
         # e.g. '2005-06-03 15:00' for every line logged from 15:00:00 to 15:59:59
-        return f"strftime(time_bucket(INTERVAL {minutes} MINUTE, timestamp), '%Y-%m-%d %H:%M')"
-    raise ValueError(f"grouping.method must be 'session' or 'time_window', got {method!r}")
+        window = f"strftime(time_bucket(INTERVAL {minutes} MINUTE, timestamp), '%Y-%m-%d %H:%M')"
+        if method == "time_window":
+            return window
+        # session_window: the adapter's group (auth.log: source IP) within each window, e.g.
+        # '203.0.113.7@2026-03-02 14:20'. Lines without a group stay NULL (not scored).
+        return f"group_id || '@' || {window}"
+    raise ValueError(
+        f"grouping.method must be 'session', 'time_window' or 'session_window', got {method!r}"
+    )
 
 
 def build_features(config: dict[str, Any]) -> FeatureStats:
@@ -166,11 +173,10 @@ def write_features_report(stats: FeatureStats, config: dict[str, Any]) -> Path:
     reports.mkdir(parents=True, exist_ok=True)
     path = reports / "features.md"
     grouping = config.get("grouping", {"method": "session"})
-    unit = (
-        f"{grouping['window_minutes']}-minute windows"
-        if grouping.get("method") == "time_window"
-        else "blocks"
-    )
+    unit = {
+        "time_window": f"{grouping.get('window_minutes')}-minute windows",
+        "session_window": f"IP {grouping.get('window_minutes')}-minute windows",
+    }.get(grouping.get("method"), "blocks")
     lines = [
         f"# Features: {config['dataset']} ({Path(config['paths']['raw_dir']).name})",
         "",

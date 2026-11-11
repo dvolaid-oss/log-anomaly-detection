@@ -23,11 +23,18 @@ from logad.models.pca import PCADetector
 ROOT = Path(__file__).resolve().parents[1]
 DEMO_LOG = ROOT / "app" / "demo" / "hdfs_demo.log"
 DEMO_LABELS = ROOT / "app" / "demo" / "hdfs_demo_labels.csv"
+AUTH_LOG = ROOT / "app" / "demo" / "auth_demo.log"
+AUTH_LABELS = ROOT / "app" / "demo" / "auth_demo_labels.csv"
 
 
 @pytest.fixture(scope="module")
 def bundle():
-    return load_bundle(ROOT / "app" / "model")
+    return load_bundle(ROOT / "app" / "model" / "hdfs")
+
+
+@pytest.fixture(scope="module")
+def auth_bundle():
+    return load_bundle(ROOT / "app" / "model" / "auth")
 
 
 @pytest.fixture(scope="module")
@@ -78,7 +85,7 @@ def test_bundle_matches_training_setup(bundle):
 
 
 def test_demo_is_scored_like_the_test_split(demo):
-    labels = pd.read_csv(DEMO_LABELS).set_index("BlockId")["Label"] == "Anomaly"
+    labels = pd.read_csv(DEMO_LABELS).set_index("group_id")["Label"] == "Anomaly"
     blocks = demo.blocks.set_index("group_id").join(labels.rename("anomaly"))
     assert len(blocks) == 300 and demo.skipped_lines == 0
     caught = int((blocks["alert"] & blocks["anomaly"]).sum())
@@ -120,7 +127,7 @@ def test_unknown_message_is_counted_not_crashing(bundle):
 
 
 def test_non_hdfs_input_gives_clear_error(bundle):
-    with pytest.raises(ValueError, match="only understands HDFS"):
+    with pytest.raises(ValueError, match="No usable HDFS log lines"):
         analyze_lines(["Nov 11 10:00:00 host sshd[1]: Failed password for root"], bundle)
 
 
@@ -130,12 +137,56 @@ def test_dashboard_demo_runs_without_errors():
 
     app = AppTest.from_file(str(ROOT / "app" / "dashboard.py"), default_timeout=120).run()
     assert not app.exception
-    metrics = {m.label: m.value for m in app.metric}
+    assert len(app.tabs) == 2
+    metrics = {m.label: m.value for m in app.metric}  # both tabs render their demo
     assert metrics["Blocks"] == "300"
-    assert metrics["Caught"].endswith("/30")
+    assert metrics["IP windows"] == "411"
+    caught = [m.value for m in app.metric if m.label == "Caught"]
+    assert caught[0].endswith("/30") and caught[1].endswith("/35")
 
 
 def test_dashboard_uses_no_deprecated_streamlit_options():
     # Streamlit logs (not raises) deprecations, so the AppTest above can't see them.
     source = (ROOT / "app" / "dashboard.py").read_text(encoding="utf-8")
     assert "use_container_width" not in source  # replaced by width="stretch"
+
+
+# ---------------------------------------------------------------- SSH bundle (autoencoder)
+def test_auth_bundle_runs_the_autoencoder_without_pytorch(auth_bundle):
+    from logad.models.numpy_autoencoder import NumpyAutoencoder
+
+    assert auth_bundle.info["model"] == "autoencoder"  # best on validation
+    assert isinstance(auth_bundle.detector, NumpyAutoencoder)
+    assert auth_bundle.group_name == "IP window"
+
+
+def test_auth_demo_catches_attacks_and_explains_bursts(auth_bundle):
+    analysis = analyze_lines(AUTH_LOG.read_text(encoding="utf-8").splitlines(), auth_bundle)
+    labels = pd.read_csv(AUTH_LABELS, keep_default_na=False).set_index("group_id")
+    blocks = analysis.blocks.set_index("group_id").join(labels)
+    anomalous = blocks["Label"] == "Anomaly"
+    assert (blocks["alert"] & anomalous).sum() >= 25  # 31 of 35 at export time
+    assert all("@" in g for g in blocks.index)  # groups are IP@window
+    burst = blocks[(blocks["attack"] == "compromise") & blocks["alert"]].index[0]
+    reasons = explain_block(analysis, auth_bundle, burst)
+    assert reasons and reasons[0].kind == "high"
+    assert "Failed password" in reasons[0].text
+
+
+def test_high_count_reason_and_non_rebuilding_models():
+    from logad.models.baseline import RareEventDetector
+
+    X = np.array([[1, 0], [2, 0], [1, 0], [3, 1]], dtype=float)
+    detector = RareEventDetector().fit(X)  # does not rebuild blocks → no mix reasons
+    explainer = Explainer(detector, ["E1", "E2"], {"E1": "a", "E2": "b"}, [1.0, 0.25], [3, 1])
+    reasons = explainer.explain([40, 0])
+    assert [r.kind for r in reasons] == ["high"]
+    assert "40x E1 'a'" in reasons[0].text and "at most 3" in reasons[0].text
+    assert explainer.mix_reasons(np.array([40.0, 0.0])) == []
+
+
+def test_best_model_uses_validation_f1():
+    from logad.inference import best_model
+
+    thresholds = {"pca": {"validation_f1": 0.9}, "baseline": {"validation_f1": 0.95}}
+    assert best_model(thresholds) == "baseline"

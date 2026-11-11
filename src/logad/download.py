@@ -125,7 +125,16 @@ def download_dataset(config: dict[str, Any], report: Reporter = print) -> list[P
     Returns the paths of the downloaded files.
     """
     raw_dir = Path(config["paths"]["raw_dir"])
-    files = config.get("data", {}).get("files")
+    data = config.get("data", {})
+    if "generate" in data:  # synthetic dataset: generate it instead of downloading
+        from logad.synth import GENERATORS  # local import: only needed for synthetic data
+
+        name = data["generate"]["generator"]
+        if name not in GENERATORS:
+            raise ValueError(f"Unknown generator {name!r}. Available: {sorted(GENERATORS)}")
+        return list(GENERATORS[name](config, report))
+
+    files = data.get("files")
     if not files:
         raise ValueError("Config has no 'data.files' section: nothing to download.")
 

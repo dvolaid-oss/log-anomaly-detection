@@ -1,0 +1,63 @@
+# Config for the synthetic SSH auth.log (Stage 9: the security twist).
+# `logad download` GENERATES this dataset (src/logad/synth/auth_log.py) instead of
+# downloading it: fictional users, background internet scanning (normal) and five injected
+# attack types (labelled per line). Safe to publish: documentation IP ranges, made-up names.
+
+dataset: auth
+seed: 42
+
+paths:
+  raw_dir: data/raw/auth
+  artifacts_dir: artifacts/auth
+  reports_dir: reports/auth
+
+data:
+  generate:
+    generator: auth_log
+    seed: 42                      # same seed → identical log every time
+    start: "2026-03-02"           # a Monday
+    days: 90
+    scanners_per_day: 40          # background bots (normal noise on any public server)
+    attacks_per_type: 20          # each attack type happens on 20 random days
+  log_file: auth.log
+  label_file: auth_labels.csv     # line_id, attack type ("" = normal): evaluation only
+  adapter_options:
+    year: 2026                    # syslog lines have no year
+
+grouping:                         # attacks are IP-centric: one group per source IP per window
+  method: session_window          # group_id (source IP from the adapter) + time window
+  window_minutes: 10
+
+parsing:
+  sim_threshold: 0.4
+  depth: 4
+  masks:
+    - name: IP
+      pattern: '(\d+\.){3}\d+'
+    - name: NUM                   # ports, uids, ...
+      pattern: '\d+'
+
+features:
+  type: event_count
+  scale: false
+  split:
+    train: 0.6
+    validation: 0.2
+
+models:
+  baseline: {}
+  pca:
+    transform: tfidf
+    variance_kept: 0.95
+  isolation_forest:
+    transform: event_count
+    n_estimators: 100
+  autoencoder:
+    transform: tfidf
+    scale: true
+    hidden: 32
+    bottleneck: 8
+    epochs: 30
+    batch_size: 512
+    learning_rate: 0.001
+    patience: 3

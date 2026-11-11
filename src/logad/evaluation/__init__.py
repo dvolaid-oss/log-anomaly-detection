@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import duckdb
 import pandas as pd
 
 from logad.evaluation.metrics import evaluate_model
@@ -63,15 +64,62 @@ def evaluate_scores(config: dict[str, Any], n_resamples: int = 1000) -> pd.DataF
     test_scores = {m: test[f"score_{m}"].to_numpy() for m in models}
     plot_pr_curves(y_test, test_scores, results, float(y_test.mean()), reports / "pr_curves.png")
     plot_score_distributions(y_test, test_scores, results, reports / "score_distributions.png")
-    write_results_report(results, y_test, config)
-    return pd.DataFrame(results.values())
+    breakdown = attack_breakdown(config, test, results)
+    write_results_report(results, y_test, config, breakdown)
+    table = pd.DataFrame(results.values())
+    table.attrs["breakdown"] = breakdown  # per-attack table (synthetic auth.log only)
+    return table
+
+
+def attack_breakdown(config: dict[str, Any], test: pd.DataFrame, results: dict):
+    """Per attack type: how many TEST groups contain it, and how many each model flags.
+
+    Only for datasets whose labels file names the attack type per line (the synthetic
+    auth.log). Returns None otherwise. A group can contain several attack types.
+    """
+    data = config.get("data", {})
+    label_file = data.get("label_file")
+    if not label_file:
+        return None
+    labels_path = Path(config["paths"]["raw_dir"]) / label_file
+    if not labels_path.is_file():
+        return None
+    attacks = pd.read_csv(labels_path, keep_default_na=False)
+    if "attack" not in attacks.columns:
+        return None
+
+    from logad.features import group_expression  # local import: avoids a cycle
+
+    events = Path(config["paths"]["artifacts_dir"]) / "events.parquet"
+    con = duckdb.connect()
+    con.register("attacks", attacks[attacks["attack"] != ""])
+    con.register("test_groups", test[["group_id"]])
+    pairs = con.sql(f"""
+        SELECT DISTINCT {group_expression(config)} AS group_id, a.attack
+        FROM '{events.as_posix()}' e JOIN attacks a USING (line_id)
+    """).df()
+    pairs = pairs[pairs["group_id"].isin(test["group_id"])]
+
+    alerts = {
+        m: set(test.loc[test[f"score_{m}"] >= r["threshold"], "group_id"])
+        for m, r in results.items()
+    }
+    rows = []
+    for attack, groups in pairs.groupby("attack")["group_id"]:
+        groups = set(groups)
+        row = {"attack": attack, "groups": len(groups)}
+        row.update({m: len(groups & flagged) for m, flagged in alerts.items()})
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values("groups", ascending=False, ignore_index=True)
 
 
 def _ci(interval) -> str:
     return f"{interval[0]:.3f}–{interval[1]:.3f}"
 
 
-def write_results_report(results: dict, y_test: pd.Series, config: dict[str, Any]) -> Path:
+def write_results_report(
+    results: dict, y_test: pd.Series, config: dict[str, Any], breakdown=None
+) -> Path:
     reports = Path(config["paths"]["reports_dir"])
     reports.mkdir(parents=True, exist_ok=True)
     n_test, n_anomalies = len(y_test), int(y_test.sum())
@@ -112,6 +160,21 @@ def write_results_report(results: dict, y_test: pd.Series, config: dict[str, Any
         f"- {LABELS.get(m, m)}: {r['threshold']:.4g} (validation F1 {r['validation_f1']:.3f})"
         for m, r in results.items()
     ]
+    if breakdown is not None and not breakdown.empty:
+        models = [m for m in results if m in breakdown.columns]
+        lines += [
+            "",
+            "## Caught per attack type (test split)",
+            "",
+            "Groups (IP × window) containing each attack type, and how many each model flagged.",
+            "",
+            "| Attack | Groups | " + " | ".join(LABELS.get(m, m) for m in models) + " |",
+            "|--------|-------:|" + "|".join("-----:" for _ in models) + "|",
+        ]
+        for row in breakdown.itertuples(index=False):
+            row = row._asdict()
+            cells = " | ".join(f"{row[m]} ({100 * row[m] / row['groups']:.0f}%)" for m in models)
+            lines.append(f"| {row['attack']} | {row['groups']} | {cells} |")
     lines += [
         "",
         "![Precision-recall curves](pr_curves.png)",

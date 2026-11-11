@@ -135,11 +135,12 @@ log-anomaly-detection/
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, (autoencoder.py), __init__ (registry + train_models)
 │   ├── evaluation/           # metrics.py (thresholds, P/R/F1, bootstrap CI), plots.py, __init__ (evaluate_scores + results.md)
 │   ├── explain/              # Explainer: rare-event + missing/extra-event reasons (from PCA)
-│   ├── inference.py          # model bundle export/load, score raw logs, demo export
+│   ├── inference.py          # bundles (best model on validation), score raw logs, demo export
+│   ├── synth/auth_log.py     # synthetic SSH auth.log generator (Stage 9)
 │   ├── config.py             # YAML config loading + validation
 │   ├── download.py           # safe downloads: host allowlist, checksums, zip-slip check
 │   └── cli.py                # `logad download | ingest | parse | features | train | evaluate | run-all`
-├── app/dashboard.py          # Streamlit app (+ app/model bundle, app/demo log: committed)
+├── app/dashboard.py          # Streamlit app, tabs HDFS + SSH (+ app/model/<ds>/, app/demo/: committed)
 ├── notebooks/01_exploration.ipynb
 ├── reports/                  # generated charts + results.md
 ├── tests/                    # pytest
@@ -290,12 +291,44 @@ about 3–4 weeks at 15–20 h/week.
 - [x] Stage 5: evaluation (thresholds on validation, test once, bootstrap CIs, charts, run-all), pushed
 - [x] Stage 6: PyTorch autoencoder (test F1 0.714; PCA still best at 0.980), pushed
 - [x] Stage 8: BGL adapter + time windows + evaluation (test once; IForest best, F1 0.511), pushed
+- [x] Stage 9: synthetic SSH auth.log + attacks, v2 data, AE best (F1 0.728), dashboard SSH tab, pushed
 - [x] Stage 7: explanations + Streamlit dashboard + export-app, pushed and live at https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
 
 ### Hand-off for the next session
 - Optional for me: run `logad run-all -c configs/bgl.yaml` myself (same numbers expected).
-- **Next: Stage 9** (security twist: synthetic SSH auth.log with injected brute-force attacks).
-- **RULE also for BGL:** its test split has been used; never tune on it.
+- **Stage 9 (2026-11-11) DONE, not committed yet.** I said "Yes, fix it": generator v2 bots
+  try root (45%), service names and COMMON_NAMES (some real); regenerated (49,122 lines, 8,580
+  attack lines); v1 results archived in reports/auth/results_v1_flawed.md. v2 TEST evaluated
+  once: baseline F1 0.407, PCA 0.165, IForest 0.382, **autoencoder 0.728** (precision 0.593,
+  recall 0.944, 173 FAs). Per attack (test windows caught by AE): distributed 237/237,
+  password_spray 7/9, compromise 4/9, brute_force 4/4, account_takeover 0/8.
+  Then: `models/numpy_autoencoder.py` (AE weights copied to NumPy; scores match PyTorch to
+  1e-5, same alerts), `AnomalyDetector.reconstruction` (+ `_rebuild` for PCA/AE),
+  model-agnostic Explainer with a new "high count" reason (train 99th percentile per event),
+  mix reasons ranked by count difference x idf (min 0.75 events). Bundles per dataset in
+  `app/model/<ds>/` using the BEST MODEL ON VALIDATION (HDFS: PCA; auth: autoencoder as NumPy),
+  demos `app/demo/<ds>_demo.log` + labels (group_id, Label[, attack]); auth demo = 2-day
+  test-period slice with most attack types (1,206 lines, 411 IP windows; 31/35 caught, 22 FAs).
+  Dashboard rewritten with two tabs (render(dataset)); checked in the browser. 125 tests.
+  Committed and pushed with my OK. **Next: Stage 10** (polish: README diagram, screenshots,
+  dashboard GIF, "what I learned", "future work"; also maybe the interview questions).
+- (history) Stage 9 build notes: `synth/auth_log.py` generator (30 users,
+  background scanning = normal, 5 attack types, RFC 5737 IPs, seed 42; run by `logad download`
+  via `data.generate`), `adapters/auth_log.py` (group_id = source IP; year from
+  `data.adapter_options`), `grouping.method: session_window` (IP@10-min window), per-attack
+  breakdown in `logad evaluate` / results.md, `configs/auth.yaml`, tests/test_auth.py (120 tests).
+  v1 data: 54,839 lines, 7,754 attack lines, 12 templates. v1 TEST evaluated once: baseline F1
+  0.934, AE 0.801, PCA 0.153 (flags everything; validation ROC 0.151), IForest 0.125.
+  **Found a generator flaw (v1):** background bots never try `root`/valid names, so "Failed
+  password for <valid user>" from outside appears ONLY in attacks (0 normal vs 7,214 attack
+  lines) -> baseline caught 216/216 'distributed' windows. Inflated. Asked me whether to fix the
+  generator (realistic bots that also try root), regenerate, rerun, evaluate the NEW test once,
+  and disclose the v1 numbers + flaw in the README. Also: account_takeover 0/6 for all real
+  detectors (event counts can't see new IP / night time); 3/8 compromise missed (failures and
+  the success can fall into different windows); Drain merges "Accepted publickey/password".
+  Still to do after that: dashboard SSH tab, docs, commit.
+- (old note) **Next: Stage 9** (security twist: synthetic SSH auth.log with injected brute-force attacks).
+- **RULE also for BGL and auth (v2):** their test splits have been used; never tune on them.
 - Deleted (with my OK, 2026-11-11) an old 16.6 MB pip cache on C: (`%LOCALAPPDATA%\pip\cache`,
   from 2026-11-08, before the D: cache setting).
 - If VS Code is closed when I need to run something, Claude launches it:
@@ -311,7 +344,7 @@ about 3–4 weeks at 15–20 h/week.
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
   - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
-    Stage 2–8 check questions (not asked yet).
+    Stage 2–9 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -412,6 +445,14 @@ about 3–4 weeks at 15–20 h/week.
 - BGL ranking flip (IForest best, PCA weak) reported as a finding; same model settings as HDFS,
   nothing tuned per dataset. Future work: semi-supervised (train on known-normal windows only)
   or per-node windows; that's a different setting and would need its own fresh evaluation.
+- Auth: background bot scanning is labelled NORMAL (SOC view). Grouping = source IP x 10-min
+  window (`session_window`). Generator v1 flaw (bots never tried root) found AFTER the v1
+  test evaluation; fixed the DATA (not the models), regenerated, new test evaluated once,
+  v1 numbers disclosed. Model settings identical to HDFS/BGL.
+- Dashboard bundle = best model on VALIDATION F1 (never test). The autoencoder runs online
+  as NumPy (no torch in requirements.txt). Explanations: rare / high count / missing+extra
+  (rebuild models only) / unknown message.
+- Windows console (cp1251) can't print → or × : use plain text in CLI output.
 - Remaining BGL parsing errors are one-word merges (e.g. "illegal" vs "privileged
   instruction") at Drain's standard sim_threshold 0.4; left as is (no tuning to the sample).
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

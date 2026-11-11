@@ -167,18 +167,67 @@ Isolation Forest (worst on HDFS) is the best. Why (analysis only, nothing tuned 
 why the pipeline keeps them swappable and compares them the same way.
 Full report: [reports/bgl/results.md](reports/bgl/results.md).
 
+## Security twist: SSH brute-force and break-in detection
+
+The same pipeline on **SSH login logs** (`auth.log`), the logs every Linux server writes. The
+data is **synthetic** ([generator](src/logad/synth/auth_log.py)): safe to publish (fictional
+users, documentation-only IP ranges) and with exact ground truth. 90 days, 30 users with work
+habits, constant **background bot scanning** (normal noise, as in a real SOC) and five
+injected attacks:
+
+| Attack | What it looks like |
+|--------|--------------------|
+| brute force | one IP, hundreds of failed passwords in minutes |
+| password spraying | one IP, one try against each of many accounts, slowly |
+| compromise | dozens of failures, then "Accepted password": a break-in |
+| distributed | many IPs, each only a few tries |
+| account takeover | a real user logs in at night from a never-seen IP, no failures |
+
+Lines are grouped per **source IP and 10-minute window**. Test split (2,961 IP windows,
+8.4% containing an attack), evaluated once:
+
+| Model | Precision | Recall | F1 [95% CI] | False alarms | Missed |
+|-------|----------:|-------:|-------------|-------------:|-------:|
+| Rule baseline | 0.259 | 0.955 | 0.407 [0.369–0.440] | 731 | 12 |
+| PCA | 0.090 | 0.996 | 0.165 [0.148–0.182] | 2,694 | 1 |
+| Isolation Forest | 0.239 | 0.955 | 0.382 [0.348–0.415] | 812 | 12 |
+| **Autoencoder** | **0.593** | 0.944 | **0.728** [0.688–0.764] | **173** | 15 |
+
+- **The neural network wins here**, the first dataset where it does: it separates attack
+  bursts from the background bots far better than counting rules.
+- **Account takeover is never caught** (0 of 8): one quiet night-time login looks exactly like
+  a normal login in event counts. Catching it needs *user-behaviour* features (new IP for this
+  user, unusual hour), which is future work.
+- **Break-ins split across windows:** the failed attempts and the final success can land in
+  different 10-minute windows, so the success alone looks normal.
+- **PCA fails completely:** brute force is "more of the normal pattern" (many failed logins),
+  which lies *along* PCA's normal directions, and PCA only scores deviation *away* from them.
+
+**A mistake I caught in my own data.** The first version of the generator had bots that never
+tried `root` or real usernames. So "failed password for a real account, from outside" appeared
+*only* in attacks: a giveaway real logs don't have, and the rule baseline scored F1 0.934 on
+it. I fixed the bots to behave like real ones (they try `root` most), regenerated the data and
+evaluated the new test split once: the baseline fell to 0.407. The flawed results are kept in
+[reports/auth/results_v1_flawed.md](reports/auth/results_v1_flawed.md) for transparency.
+Full report: [reports/auth/results.md](reports/auth/results.md).
+
 ## Dashboard
 
-A Streamlit app (`app/dashboard.py`) lets anyone try the detector: upload an HDFS log, or use
-the built-in demo (300 blocks the model never trained on). For every flagged block it shows
-**why**, in plain words:
+A Streamlit app (`app/dashboard.py`) with two tabs, **HDFS** and **SSH attacks**. Upload a
+log or use the built-in demos (taken from test periods the models never trained on). Each
+tab uses the model that was best on validation (PCA for HDFS; the autoencoder for SSH,
+re-implemented in NumPy so the online app needs no PyTorch). For every flagged group it
+shows **why**, in plain words:
 
 - 🔸 Contains E18 `Receiving empty packet for block <BLK>`: seen in 0.069% of training blocks.
 - 🕳️ Missing: expected ~2.3x E3 `PacketResponder <NUM> for block <BLK> <*>`, found 0.
   (a write that died right after starting: the kind of anomaly only PCA catches)
+- 📈 High count: 50x E1 `Failed password for <*> from <IP> ...`; 99% of training groups
+  have at most 4. (an SSH break-in attempt)
 
-plus event counts (found vs expected) and the block's own log lines. On the demo it catches
-27 of 30 anomalies with 0 false alarms. Uploads are processed in memory only (20 MB limit).
+plus event counts (found vs expected) and the group's own log lines. Demos: HDFS 27 of 30
+anomalies caught, 0 false alarms; SSH 31 of 35 attack windows caught, 22 false alarms.
+Uploads are processed in memory only (20 MB limit).
 
 **Try it online:** [https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/](https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/)
 
@@ -214,6 +263,7 @@ logad run-all  --config configs/hdfs.yaml   # or: every step above in one comman
 logad export-app --config configs/hdfs.yaml # model bundle + demo log for the dashboard
 
 logad run-all  --config configs/bgl.yaml    # the same pipeline on the BGL dataset
+logad run-all  --config configs/auth.yaml   # SSH logs: generates the synthetic data first
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -242,7 +292,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 6 | Autoencoder (PyTorch) | ✅ |
 | 7 | Explanations + Streamlit dashboard | ✅ ([live](https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/)) |
 | 8 | BGL (time windows) | ✅ |
-| 9 | Security logs: SSH brute-force detection | ⏳ |
+| 9 | Security logs: SSH brute-force detection | ✅ |
 | 10 | Polish | ⏳ |
 
 ## License

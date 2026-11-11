@@ -36,9 +36,11 @@ class PCADetector(AnomalyDetector):
         self.pca_ = PCA(n_components=self.variance_kept, svd_solver="full", random_state=self.seed)
         self.pca_.fit(X)
 
+    def _rebuild(self, X: np.ndarray) -> np.ndarray:
+        return self.pca_.inverse_transform(self.pca_.transform(X))
+
     def _score(self, X: np.ndarray) -> np.ndarray:
-        rebuilt = self.pca_.inverse_transform(self.pca_.transform(X))
-        return ((X - rebuilt) ** 2).sum(axis=1)
+        return ((X - self._rebuild(X)) ** 2).sum(axis=1)
 
     @property
     def n_components(self) -> int:

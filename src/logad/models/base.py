@@ -44,6 +44,30 @@ class AnomalyDetector(ABC):
         """1 where score >= `threshold`, else 0 (thresholds are chosen by `logad evaluate`)."""
         return (self.score(X) >= threshold).astype(int)
 
+    def reconstruction(self, X) -> tuple[np.ndarray, np.ndarray]:
+        """For models that REBUILD blocks (PCA, autoencoder): per row, the residual in the
+        model's own feature space, and the event counts the model expected to see.
+        Used to explain alerts ("expected ~3x E3, found 0")."""
+        Xt = self.transformer.transform(X)
+        rebuilt = self._rebuild(Xt)
+        return Xt - rebuilt, np.maximum(self._to_counts(rebuilt), 0)
+
+    def _rebuild(self, Xt: np.ndarray) -> np.ndarray:
+        raise NotImplementedError(f"{self.name} does not rebuild blocks")
+
+    @property
+    def rebuilds(self) -> bool:
+        return type(self)._rebuild is not AnomalyDetector._rebuild
+
+    def _to_counts(self, Xt: np.ndarray) -> np.ndarray:
+        """Undo the feature transform (scaling, then TF-IDF) to get back to event counts."""
+        steps = self.transformer.named_steps
+        if "scale" in steps:
+            Xt = steps["scale"].inverse_transform(Xt)
+        if "tfidf" in steps:
+            Xt = Xt / steps["tfidf"].idf_
+        return Xt
+
     @abstractmethod
     def _fit(self, X: np.ndarray) -> None: ...
 

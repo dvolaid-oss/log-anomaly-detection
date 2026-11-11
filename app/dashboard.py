@@ -1,13 +1,17 @@
-"""Log Anomaly Detector: Streamlit dashboard.
+"""Log Anomaly Detector: Streamlit dashboard with two tabs.
 
 Run locally:   streamlit run app/dashboard.py
 
-Upload an HDFS log (or use the demo), and the app parses it with the saved Drain parser,
-scores every block with the saved PCA model, flags blocks above the threshold chosen on the
-validation split, and explains each flag in plain words.
+- HDFS (big-data logs): the PCA model, best on validation, test F1 0.980.
+- SSH attacks (security): synthetic auth.log with injected attacks, scored by the
+  autoencoder (best on validation), run in plain NumPy so no PyTorch is needed online.
+
+Each tab parses a log (demo or upload) with the saved Drain parser, groups the lines (HDFS
+blocks / source-IP 10-minute windows), scores every group, flags those above the threshold
+chosen on the validation split, and explains each flag in plain words.
 
 Safety: uploads are read into memory and never written to disk; the upload size is capped
-in .streamlit/config.toml; log text is only shown inside tables (never rendered as HTML).
+in .streamlit/config.toml; log text is only shown inside tables or escaped markdown.
 """
 
 from __future__ import annotations
@@ -35,12 +39,41 @@ from logad.inference import (  # noqa: E402
     load_bundle,
 )
 
-MODEL_DIR = ROOT / "app" / "model"
-DEMO_LOG = ROOT / "app" / "demo" / "hdfs_demo.log"
-DEMO_LABELS = ROOT / "app" / "demo" / "hdfs_demo_labels.csv"
 REPO_URL = "https://github.com/dvolaid-oss/log-anomaly-detection"
 FLAGGED, NOT_FLAGGED = "#eb6834", "#2a78d6"  # validated palette: orange, blue
-KIND_ICON = {"rare": "🔸", "missing": "🕳️", "extra": "➕", "unknown": "❔"}
+KIND_ICON = {"rare": "🔸", "high": "📈", "missing": "🕳️", "extra": "➕", "unknown": "❔"}
+MODEL_NAMES = {
+    "pca": "PCA (Xu et al. 2009)",
+    "autoencoder": "Autoencoder (neural network, run in NumPy)",
+    "baseline": "Rule baseline",
+    "isolation_forest": "Isolation Forest",
+}
+DATASETS = {
+    "hdfs": {
+        "tab": "📦 HDFS (big-data logs)",
+        "demo": "Demo: 300 HDFS blocks",
+        "demo_note": "Public LogHub data from blocks the model never trained on (test split).",
+        "test_note": "test F1 0.980 on 115,012 unseen blocks",
+        "intro": "Finds unusual sessions in Hadoop (HDFS) logs **without ever being shown "
+        "labelled anomalies**, and explains each alert: which rare events a block contains, "
+        "and which expected events are missing.",
+    },
+    "auth": {
+        "tab": "🔐 SSH attacks (security)",
+        "demo": "Demo: 2 days of SSH logs (synthetic)",
+        "demo_note": "Synthetic auth.log from the test period (never trained on), with "
+        "injected attacks among normal logins and background bot scanning.",
+        "test_note": "test F1 0.728 on 2,961 unseen IP windows",
+        "intro": "Finds attacks in SSH login logs (`auth.log`): brute force, password "
+        "spraying, break-ins. Lines are grouped per **source IP and 10-minute window**. "
+        "Background bot scanning counts as normal noise, as in a real SOC.",
+    },
+}
+
+
+def title(text: str) -> str:
+    """'IP window' -> 'IP window', 'block' -> 'Block' (str.capitalize would give 'Ip window')."""
+    return text[:1].upper() + text[1:]
 
 
 def escape_markdown(text: str) -> str:
@@ -53,20 +86,21 @@ st.set_page_config(page_title="Log Anomaly Detector", page_icon="🔎", layout="
 
 
 @st.cache_resource
-def get_bundle():
-    return load_bundle(MODEL_DIR)
+def get_bundle(dataset: str):
+    return load_bundle(ROOT / "app" / "model" / dataset)
 
 
-@st.cache_data(max_entries=5, show_spinner="Parsing and scoring the log ...")
-def analyze(raw: bytes):
+@st.cache_data(max_entries=6, show_spinner="Parsing and scoring the log ...")
+def analyze(dataset: str, raw: bytes):
     lines = raw.decode("utf-8", errors="replace").splitlines()
-    return analyze_lines(lines, get_bundle())
+    return analyze_lines(lines, get_bundle(dataset))
 
 
-def score_chart(blocks: pd.DataFrame, threshold: float) -> alt.LayerChart:
+def score_chart(blocks: pd.DataFrame, threshold: float, unit: str) -> alt.LayerChart:
     """Histogram of scores (log scale), flagged vs not flagged, with the threshold line."""
+    floor = max(float(blocks["score"].min()), threshold / 1e4, 1e-9)
     data = blocks.assign(
-        log_score=np.log10(blocks["score"].clip(lower=1e-3)),
+        log_score=np.log10(blocks["score"].clip(lower=floor)),
         status=np.where(blocks["alert"], "flagged", "not flagged"),
     )
     color = alt.Color(
@@ -80,9 +114,9 @@ def score_chart(blocks: pd.DataFrame, threshold: float) -> alt.LayerChart:
         .mark_bar(cornerRadiusTopLeft=2, cornerRadiusTopRight=2)
         .encode(
             x=alt.X("log_score:Q", bin=alt.Bin(maxbins=40), axis=axis),
-            y=alt.Y("count():Q", title="blocks", scale=alt.Scale(type="symlog")),
+            y=alt.Y("count():Q", title=f"{unit}s", scale=alt.Scale(type="symlog")),
             color=color,
-            tooltip=[alt.Tooltip("status:N"), alt.Tooltip("count():Q", title="blocks")],
+            tooltip=[alt.Tooltip("status:N"), alt.Tooltip("count():Q", title=f"{unit}s")],
         )
     )
     rule = (
@@ -93,124 +127,145 @@ def score_chart(blocks: pd.DataFrame, threshold: float) -> alt.LayerChart:
     return (bars + rule).properties(height=220)
 
 
-bundle = get_bundle()
-
-# ----------------------------------------------------------------------------- sidebar
-with st.sidebar:
-    st.header("Input")
-    source = st.radio("Log source", ["Demo: 300 HDFS blocks", "Upload an HDFS log"])
-    labels = None
-    if source.startswith("Demo"):
-        raw = DEMO_LOG.read_bytes()
-        labels = pd.read_csv(DEMO_LABELS).set_index("BlockId")["Label"]
-        st.caption("Public LogHub data from blocks the model never trained on (test split).")
-    else:
-        upload = st.file_uploader("HDFS log file (max 20 MB)", type=["log", "txt"])
-        if upload is None:
-            st.info("Choose a file, or switch back to the demo.")
-            st.stop()
-        raw = upload.getvalue()  # in memory only, never saved
-
-    st.header("Model")
-    info = bundle.info
-    st.markdown(
-        f"- **PCA** detector (Xu et al. 2009)\n"
-        f"- trained on {info['train_blocks']:,} blocks, no labels\n"
-        f"- alert threshold **{bundle.threshold:.3g}** (best F1 on validation: "
-        f"{info['validation_f1']:.3f})\n"
-        f"- test F1 0.980 on 115,012 unseen blocks"
+def read_input(dataset: str, meta: dict):
+    """Demo or upload, chosen inside the tab. Returns (raw bytes or None, labels or None)."""
+    source = st.radio(
+        "Log source", [meta["demo"], "Upload a log file"], horizontal=True, key=f"src_{dataset}"
     )
-    st.markdown(f"[How it works (GitHub)]({REPO_URL})")
+    if source == meta["demo"]:
+        demo = ROOT / "app" / "demo"
+        labels = pd.read_csv(demo / f"{dataset}_demo_labels.csv", keep_default_na=False)
+        st.caption(meta["demo_note"])
+        return (demo / f"{dataset}_demo.log").read_bytes(), labels.set_index("group_id")
+    upload = st.file_uploader(
+        "Log file (max 20 MB, processed in memory, never stored)",
+        type=["log", "txt"],
+        key=f"upload_{dataset}",
+    )
+    if upload is None:
+        st.info("Choose a file, or switch back to the demo.")
+        return None, None
+    return upload.getvalue(), None  # in memory only, never saved
 
-# ----------------------------------------------------------------------------- main
-st.title("🔎 Log Anomaly Detector")
-st.write(
-    "Finds unusual sessions in HDFS logs **without ever being shown labelled anomalies**, and "
-    "explains each alert: which rare events a block contains, and which expected events "
-    "are missing."
-)
 
-try:
-    analysis = analyze(raw)
-except ValueError as error:
-    st.error(str(error))
-    st.stop()
-
-blocks = analysis.blocks.copy()
-if labels is not None:
-    blocks["true label"] = blocks["group_id"].map(labels).fillna("?")
-
-cols = st.columns(5 if labels is not None else 3)
-cols[0].metric("Log lines", f"{analysis.total_lines:,}")
-cols[1].metric("Blocks", f"{len(blocks):,}")
-cols[2].metric("Flagged", f"{int(blocks['alert'].sum()):,}")
-if labels is not None:
-    is_anomaly = blocks["true label"] == "Anomaly"
-    caught = int((blocks["alert"] & is_anomaly).sum())
-    cols[3].metric("Caught", f"{caught}/{int(is_anomaly.sum())}", help="true anomalies flagged")
-    cols[4].metric("False alarms", f"{int((blocks['alert'] & ~is_anomaly).sum())}")
-if analysis.skipped_lines:
-    st.warning(
-        f"{analysis.skipped_lines:,} lines didn't look like HDFS log lines and were skipped."
+def render(dataset: str) -> None:
+    meta, bundle = DATASETS[dataset], get_bundle(dataset)
+    unit, info = bundle.group_name, bundle.info
+    st.write(meta["intro"])
+    st.caption(
+        f"Model: **{MODEL_NAMES.get(info['model'], info['model'])}**, trained on "
+        f"{info['train_groups']:,} {unit}s without labels · alert threshold "
+        f"{bundle.threshold:.3g} (best F1 on validation: {info['validation_f1']:.3f}) · "
+        f"{meta['test_note']}"
     )
 
-st.subheader("Score distribution")
-st.altair_chart(score_chart(blocks, bundle.threshold), width="stretch")
-st.caption("Blocks right of the dashed line are flagged. Hover the bars for counts.")
+    raw, labels = read_input(dataset, meta)
+    if raw is None:
+        return
+    try:
+        analysis = analyze(dataset, raw)
+    except ValueError as error:
+        st.error(str(error))
+        return
 
-st.subheader("Blocks, most suspicious first")
-explanations = {
-    g: explain_block(analysis, bundle, g) for g in blocks.loc[blocks["alert"], "group_id"]
-}
-blocks["top reason"] = blocks["group_id"].map(
-    lambda g: explanations[g][0].text if explanations.get(g) else ""
-)
-show_all = st.toggle("Show all blocks (not only flagged ones)", value=False)
-table = blocks if show_all else blocks[blocks["alert"]]
-columns = ["group_id", "score", "n_lines", "top reason"]
-if labels is not None:
-    columns.insert(3, "true label")
-selection = st.dataframe(
-    table[columns],
-    hide_index=True,
-    width="stretch",
-    on_select="rerun",
-    selection_mode="single-row",
-    column_config={
-        "group_id": "block",
-        "score": st.column_config.NumberColumn("score", format="%.3g"),
-        "n_lines": "lines",
-    },
-)
-if table.empty:
-    st.success("No block crossed the alert threshold.")
-    st.stop()
+    blocks = analysis.blocks.copy()
+    if labels is not None:
+        blocks["true label"] = blocks["group_id"].map(labels["Label"]).fillna("?")
+        if "attack" in labels.columns:
+            blocks["attack"] = blocks["group_id"].map(labels["attack"]).fillna("")
 
-rows = selection.selection.rows if selection else []
-chosen = table.iloc[rows[0]]["group_id"] if rows else table.iloc[0]["group_id"]
-st.caption("Click a row to inspect another block.")
+    cols = st.columns(5 if labels is not None else 3)
+    cols[0].metric("Log lines", f"{analysis.total_lines:,}")
+    cols[1].metric(f"{title(unit)}s", f"{len(blocks):,}")
+    cols[2].metric("Flagged", f"{int(blocks['alert'].sum()):,}")
+    if labels is not None:
+        is_anomaly = blocks["true label"] == "Anomaly"
+        caught = int((blocks["alert"] & is_anomaly).sum())
+        cols[3].metric("Caught", f"{caught}/{int(is_anomaly.sum())}", help="true anomalies flagged")
+        cols[4].metric("False alarms", f"{int((blocks['alert'] & ~is_anomaly).sum())}")
+    if analysis.skipped_lines:
+        st.warning(f"{analysis.skipped_lines:,} lines weren't recognised and were skipped.")
+    if "attack" in blocks.columns:
+        per_attack = blocks[blocks["attack"] != ""].groupby("attack")["alert"].agg(["sum", "size"])
+        st.markdown(
+            "**Caught per attack type:** "
+            + " · ".join(f"{a}: {int(r['sum'])}/{int(r['size'])}" for a, r in per_attack.iterrows())
+        )
 
-# ----------------------------------------------------------------------------- detail
-row = blocks.set_index("group_id").loc[chosen]
-st.subheader(f"Block {chosen}")
-status = "🚩 flagged" if row["alert"] else "not flagged"
-extra = f" · true label: **{row['true label']}**" if labels is not None else ""
-st.markdown(f"Score **{row['score']:.3g}** (threshold {bundle.threshold:.3g}) · {status}{extra}")
+    st.subheader("Score distribution")
+    st.altair_chart(score_chart(blocks, bundle.threshold, unit), width="stretch")
+    st.caption(f"{title(unit)}s right of the dashed line are flagged. Hover for counts.")
 
-reasons = explanations.get(chosen) or explain_block(analysis, bundle, chosen)
-if reasons:
-    st.markdown("**Why**")
-    st.markdown("\n".join(f"- {KIND_ICON[r.kind]} {escape_markdown(r.text)}" for r in reasons))
-
-left, right = st.columns([2, 3])
-with left:
-    st.markdown("**Event counts: found vs expected by PCA**")
-    st.dataframe(
-        expected_vs_found(analysis, bundle, chosen),
+    st.subheader(f"{title(unit)}s, most suspicious first")
+    explanations = {
+        g: explain_block(analysis, bundle, g) for g in blocks.loc[blocks["alert"], "group_id"]
+    }
+    blocks["top reason"] = blocks["group_id"].map(
+        lambda g: explanations[g][0].text if explanations.get(g) else ""
+    )
+    show_all = st.toggle(f"Show all {unit}s (not only flagged ones)", key=f"all_{dataset}")
+    table = blocks if show_all else blocks[blocks["alert"]]
+    columns = ["group_id", "score", "n_lines"]
+    columns += [c for c in ("true label", "attack") if c in blocks.columns] + ["top reason"]
+    selection = st.dataframe(
+        table[columns],
         hide_index=True,
         width="stretch",
-        column_config={"template": st.column_config.TextColumn(width="medium")},
+        on_select="rerun",
+        selection_mode="single-row",
+        key=f"table_{dataset}",
+        column_config={
+            "group_id": unit,
+            "score": st.column_config.NumberColumn("score", format="%.3g"),
+            "n_lines": "lines",
+        },
     )
-with right:
-    st.markdown("**The block's log lines**")
-    st.dataframe(block_lines(analysis, chosen), hide_index=True, width="stretch")
+    if table.empty:
+        st.success(f"No {unit} crossed the alert threshold.")
+        return
+    rows = selection.selection.rows if selection else []
+    chosen = table.iloc[rows[0]]["group_id"] if rows else table.iloc[0]["group_id"]
+    st.caption(f"Click a row to inspect another {unit}.")
+
+    row = blocks.set_index("group_id").loc[chosen]
+    st.subheader(f"{title(unit)} {chosen}")
+    status = "🚩 flagged" if row["alert"] else "not flagged"
+    truth = f" · true label: **{row['true label']}**" if labels is not None else ""
+    if row.get("attack"):
+        truth += f" ({escape_markdown(row['attack'])})"
+    st.markdown(
+        f"Score **{row['score']:.3g}** (threshold {bundle.threshold:.3g}) · {status}{truth}"
+    )
+
+    reasons = explanations.get(chosen) or explain_block(analysis, bundle, chosen)
+    st.markdown("**Why**")
+    if reasons:
+        st.markdown("\n".join(f"- {KIND_ICON[r.kind]} {escape_markdown(r.text)}" for r in reasons))
+    else:
+        st.markdown(
+            "- No single event stands out: the model reacts to the overall combination of "
+            "events (see the counts below)."
+        )
+
+    left, right = st.columns([2, 3])
+    with left:
+        st.markdown("**Event counts: found vs expected by the model**")
+        st.dataframe(
+            expected_vs_found(analysis, bundle, chosen),
+            hide_index=True,
+            width="stretch",
+            column_config={"template": st.column_config.TextColumn(width="medium")},
+        )
+    with right:
+        st.markdown(f"**The {unit}'s log lines**")
+        st.dataframe(block_lines(analysis, chosen), hide_index=True, width="stretch")
+
+
+st.title("🔎 Log Anomaly Detector")
+st.markdown(
+    f"Unsupervised anomaly detection on system and security logs, with explanations. "
+    f"[How it works (GitHub)]({REPO_URL})"
+)
+for tab, dataset in zip(st.tabs([m["tab"] for m in DATASETS.values()]), DATASETS, strict=True):
+    with tab:
+        render(dataset)

@@ -61,3 +61,13 @@ def test_built_from_config():
     config = {"models": {"autoencoder": {"hidden": 16, "bottleneck": 4, "scale": True}}}
     detector = build_models(config)["autoencoder"]
     assert (detector.hidden, detector.bottleneck, detector.scale) == (16, 4, True)
+
+
+def test_numpy_copy_scores_like_pytorch(fitted):
+    from logad.models.numpy_autoencoder import NumpyAutoencoder
+
+    copy = NumpyAutoencoder.from_torch(fitted)
+    X = np.vstack([normal_blocks(50), ODD_MIX, RARE_EVENT])
+    assert np.allclose(copy.score(X), fitted.score(X), rtol=1e-4, atol=1e-6)
+    _, expected = copy.reconstruction(NORMAL)
+    assert expected.shape == NORMAL.shape and (expected >= 0).all()

@@ -124,6 +124,12 @@ class AutoencoderDetector(AnomalyDetector):
     def _score(self, X: np.ndarray) -> np.ndarray:
         return self._errors(X).astype(float)
 
+    def _rebuild(self, X: np.ndarray) -> np.ndarray:
+        torch = _import_torch()
+        self.model_.eval()
+        with torch.no_grad():
+            return self.model_(torch.tensor(X, dtype=torch.float32)).numpy().astype(float)
+
     @property
     def epochs_trained(self) -> int:
         return len(self.history_)

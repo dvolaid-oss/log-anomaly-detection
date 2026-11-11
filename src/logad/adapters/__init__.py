@@ -9,9 +9,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from logad.adapters import bgl, hdfs
+from logad.adapters import auth_log, bgl, hdfs
 
-ADAPTERS = {"hdfs": hdfs.ingest, "bgl": bgl.ingest}
+ADAPTERS = {"hdfs": hdfs.ingest, "bgl": bgl.ingest, "auth": auth_log.ingest}
 OUTPUT_FILE = "logs.parquet"
 
 
@@ -34,5 +34,7 @@ def ingest_dataset(config: dict[str, Any]) -> tuple[Path, Any]:
         raise FileNotFoundError(f"Labels file {label_path} not found. Run `logad download`.")
 
     out_path = Path(config["paths"]["artifacts_dir"]) / OUTPUT_FILE
-    stats = ADAPTERS[dataset](log_path, out_path, label_path)
+    # adapter-specific settings, e.g. the year for syslog lines (which have none)
+    options = data.get("adapter_options") or {}
+    stats = ADAPTERS[dataset](log_path, out_path, label_path, **options)
     return out_path, stats

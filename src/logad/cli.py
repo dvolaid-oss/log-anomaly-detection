@@ -29,7 +29,7 @@ from logad.config import load_config
 from logad.download import download_dataset
 from logad.evaluation import evaluate_scores
 from logad.features import build_features
-from logad.inference import export_bundle, export_demo
+from logad.inference import export_bundle, export_demo, load_bundle
 from logad.models import train_models
 from logad.parsing import parse_dataset
 
@@ -134,7 +134,7 @@ def features(config: ConfigPath = DEFAULT_CONFIG) -> None:
     cfg = load_config(config)
     typer.echo(f"[{cfg['dataset']}] Building features from {cfg['paths']['artifacts_dir']} ...")
     stats = build_features(cfg)
-    typer.echo(f"  matrix: {stats.blocks:,} blocks x {stats.events} events")
+    typer.echo(f"  matrix: {stats.blocks:,} groups x {stats.events} events")
     typer.echo(stats.split_summary.to_string())
     typer.echo(f"Saved {cfg['paths']['artifacts_dir']}/features.parquet")
     typer.echo(f"Summary: {cfg['paths']['reports_dir']}/features.md")
@@ -184,6 +184,11 @@ def evaluate(config: ConfigPath = DEFAULT_CONFIG) -> None:
             f"  {r.model:<18}{r.precision:>10.3f}{r.recall:>8.3f}{r.f1:>7.3f}  {ci:<13}"
             f"{r.tp:>7,}{r.fp:>13,}{r.fn:>7,}"
         )
+    breakdown = results.attrs.get("breakdown")
+    if breakdown is not None and not breakdown.empty:
+        typer.echo("  Caught per attack type (test groups containing it, flagged by each model)")
+        for line in breakdown.to_string(index=False).splitlines():
+            typer.echo(f"  {line}")
     typer.echo(
         f"Report: {cfg['paths']['reports_dir']}/results.md (+ pr_curves.png, "
         "score_distributions.png)"
@@ -196,10 +201,14 @@ def export_app(
     config: ConfigPath = DEFAULT_CONFIG,
     out: Annotated[Path, typer.Option(help="Folder of the dashboard.")] = Path("app"),
 ) -> None:
-    """Write the dashboard's model bundle (app/model) and demo log (app/demo)."""
+    """Write the dashboard's model bundle (app/model/<dataset>) and demo log (app/demo)."""
     cfg = load_config(config)
-    bundle_dir = export_bundle(cfg, out / "model")
-    typer.echo(f"Model bundle: {bundle_dir}")
+    bundle_dir = export_bundle(cfg, out / "model" / cfg["dataset"])
+    info = load_bundle(bundle_dir).info
+    typer.echo(
+        f"Model bundle: {bundle_dir} (model: {info['model']}, best on validation, "
+        f"F1 {info['validation_f1']:.3f})"
+    )
     log_path, labels_path = export_demo(cfg, out / "demo")
     typer.echo(
         f"Demo log: {log_path} ({log_path.stat().st_size / 1e6:.2f} MB), labels: {labels_path}"
