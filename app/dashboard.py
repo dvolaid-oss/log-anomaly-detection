@@ -26,10 +26,38 @@ import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
-try:
-    import logad  # noqa: F401  (installed with `pip install -e .`)
-except ImportError:  # e.g. on Streamlit Community Cloud, which only installs requirements.txt
-    sys.path.insert(0, str(ROOT / "src"))
+SRC = ROOT / "src"
+
+
+def _source_fingerprint() -> tuple:
+    """Name, size and modification time of every logad source file."""
+    return tuple(
+        sorted(
+            (str(p.relative_to(SRC)), p.stat().st_size, p.stat().st_mtime_ns)
+            for p in SRC.rglob("*.py")
+        )  # noqa: E501
+    )
+
+
+# Always run THIS repo's logad code. Two ways a hosted app (Streamlit Cloud) can run stale code
+# after a push: an older installed copy of the package shadowing src/, or old logad modules
+# still in memory (Streamlit reruns this script in a long-lived process). Seen after the
+# Stage 9 push: the new dashboard called the Stage 7 inference code.
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+_fingerprint = _source_fingerprint()
+_loaded = sys.modules.get("logad")
+_recorded = getattr(_loaded, "_source_fingerprint", None)
+if _loaded is not None and (
+    not str(getattr(_loaded, "__file__", "")).startswith(str(SRC))  # an installed copy
+    or (_recorded is not None and _recorded != _fingerprint)  # files changed since loading
+):
+    for _name in [m for m in sys.modules if m == "logad" or m.startswith("logad.")]:
+        del sys.modules[_name]
+    st.cache_resource.clear()  # cached bundles hold objects from the old code
+import logad  # noqa: E402
+
+logad._source_fingerprint = _fingerprint
 
 from logad.inference import (  # noqa: E402
     analyze_lines,

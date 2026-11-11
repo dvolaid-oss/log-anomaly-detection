@@ -190,3 +190,26 @@ def test_best_model_uses_validation_f1():
 
     thresholds = {"pca": {"validation_f1": 0.9}, "baseline": {"validation_f1": 0.95}}
     assert best_model(thresholds) == "baseline"
+
+
+def test_dashboard_ignores_a_stale_installed_logad():
+    # Regression (Stage 9 deploy): the hosted app ran an OLD logad while dashboard.py was new.
+    # Run in a separate process so the fake module can't affect other tests.
+    import subprocess
+    import sys
+
+    script = (
+        "import sys, types\n"
+        "old = types.ModuleType('logad'); old.__file__ = '/site-packages/logad/__init__.py'\n"
+        "sys.modules['logad'] = old\n"
+        "from streamlit.testing.v1 import AppTest\n"
+        f"app = AppTest.from_file({str(ROOT / 'app' / 'dashboard.py')!r}, default_timeout=120)\n"
+        "app.run()\n"
+        "assert not app.exception, app.exception\n"
+        "print('ok')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=300
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "ok" in result.stdout

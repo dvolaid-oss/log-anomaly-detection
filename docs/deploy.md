@@ -32,7 +32,11 @@ It opens at http://localhost:8501. Stop it with `Ctrl+C` in the terminal.
 
 ## Notes
 
-- **Updates:** every push to `main` redeploys automatically.
+- **Updates:** every push to `main` redeploys automatically. After the Stage 9 push, the
+  hosted app ran the NEW dashboard with OLD `logad` code (even after a reboot), so the
+  dashboard now always loads `src/` from this repo and drops stale `logad` modules
+  (tested). If the app still misbehaves after a push: **Manage app** (bottom right) → **⋮**
+  → **Reboot app**.
 - **Settings** come from `.streamlit/config.toml` (20 MB upload limit, no usage telemetry).
 - **Sleep:** free apps sleep after a few days without visitors; the first visit wakes them
   (about 30 seconds).
