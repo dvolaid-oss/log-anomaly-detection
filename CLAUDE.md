@@ -254,6 +254,9 @@ about 3–4 weeks at 15–20 h/week.
   `logad-dashboard` entry to `D:\Projects\p1\.claude\launch.json` (the preview tool reads p1's
   file; nightfall entry untouched); local `.claude/` in this repo is gitignored.
   I confirmed the app ran fine for me. Committed and pushed Stage 7.
+  Deployed on Streamlit Community Cloud myself (free, no card): https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
+  (I skipped the Python-version setting; the default works, since numpy 2.5 needs >= 3.12).
+  Claude checked the live app: 300 blocks, 27 flagged, 27/30 caught, 0 false alarms.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
@@ -263,12 +266,10 @@ about 3–4 weeks at 15–20 h/week.
 - [x] Stage 4: model interface + baseline, PCA, Isolation Forest + `logad train`, pushed
 - [x] Stage 5: evaluation (thresholds on validation, test once, bootstrap CIs, charts, run-all), pushed
 - [x] Stage 6: PyTorch autoencoder (test F1 0.714; PCA still best at 0.980), pushed
-- [x] Stage 7: explanations + Streamlit dashboard + export-app, pushed (online deploy pending)
+- [x] Stage 7: explanations + Streamlit dashboard + export-app, pushed and live at https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
 
 ### Hand-off for the next session
-- **Stage 7 is pushed; deploy pending.** Still to do: I deploy on Streamlit Community Cloud following
-  `docs/deploy.md` (my GitHub login: Claude can't create accounts or sign in), and Claude
-  puts the live URL in the README "Live demo" line. Then **Stage 8** (BGL adapter with
+- **Next: Stage 8** (BGL adapter with
   time-window features; also a chance to test a "missing events"/block-length idea on new data).
 - Deleted (with my OK, 2026-11-11) an old 16.6 MB pip cache on C: (`%LOCALAPPDATA%\pip\cache`,
   from 2026-11-08, before the D: cache setting).

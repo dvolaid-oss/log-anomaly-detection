@@ -12,7 +12,8 @@ It is benchmarked on the public [LogHub](https://github.com/logpai/loghub) datas
 
 > 🚧 **Work in progress.** See the [roadmap](#roadmap) for status.
 >
-> **Live demo:** _coming soon_ (Streamlit dashboard, see [Dashboard](#dashboard)).
+> **[▶ Live demo](https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/)**: try the dashboard in your browser (free host; if it's asleep,
+> click "wake up" and wait ~30 s).
 
 ## How it works
 
@@ -144,8 +145,10 @@ the built-in demo (300 blocks the model never trained on). For every flagged blo
 plus event counts (found vs expected) and the block's own log lines. On the demo it catches
 27 of 30 anomalies with 0 false alarms. Uploads are processed in memory only (20 MB limit).
 
+**Try it online:** [https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/](https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/)
+
 ```powershell
-streamlit run app/dashboard.py        # local; deploy guide: docs/deploy.md
+streamlit run app/dashboard.py        # run locally; deploy guide: docs/deploy.md
 ```
 
 Full report: [reports/hdfs/results.md](reports/hdfs/results.md) ·
@@ -200,7 +203,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 4 | Models: baseline, PCA, Isolation Forest | ✅ |
 | 5 | Evaluation + results table | ✅ |
 | 6 | Autoencoder (PyTorch) | ✅ |
-| 7 | Explanations + Streamlit dashboard | ✅ (deploy pending) |
+| 7 | Explanations + Streamlit dashboard | ✅ ([live](https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/)) |
 | 8 | BGL (time windows) | ⏳ |
 | 9 | Security logs: SSH brute-force detection | ⏳ |
 | 10 | Polish | ⏳ |

@@ -1,5 +1,7 @@
 # Deploying the dashboard (Streamlit Community Cloud, free)
 
+**Live app:** https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
+
 The dashboard (`app/dashboard.py`) runs online straight from this GitHub repo. Everything it
 needs is committed: the model bundle (`app/model/`, 12 KB) and the demo log (`app/demo/`).
 No dataset download, no PyTorch.
