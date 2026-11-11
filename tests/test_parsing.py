@@ -169,3 +169,12 @@ def test_parse_dataset_without_ingest_explains_what_to_run(tmp_path):
     config = {"dataset": "hdfs", "paths": {"artifacts_dir": str(tmp_path)}}
     with pytest.raises(FileNotFoundError, match="logad ingest"):
         parse_dataset(config)
+
+
+def test_template_report_text_is_safe_to_publish():
+    from logad.parsing import for_display
+
+    # the NUL bytes become the visible text \x00 (a backslash, then x00)
+    assert for_display("Part Number: <*>\x00\x00 end") == r"Part Number: <*>\x00\x00 end"
+    assert for_display("chdir(/home/alice/run) failed") == "chdir(/home/<user>/run) failed"
+    assert for_display("normal text") == "normal text"

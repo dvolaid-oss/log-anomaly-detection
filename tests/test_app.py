@@ -133,3 +133,9 @@ def test_dashboard_demo_runs_without_errors():
     metrics = {m.label: m.value for m in app.metric}
     assert metrics["Blocks"] == "300"
     assert metrics["Caught"].endswith("/30")
+
+
+def test_dashboard_uses_no_deprecated_streamlit_options():
+    # Streamlit logs (not raises) deprecations, so the AppTest above can't see them.
+    source = (ROOT / "app" / "dashboard.py").read_text(encoding="utf-8")
+    assert "use_container_width" not in source  # replaced by width="stretch"

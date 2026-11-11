@@ -91,6 +91,8 @@ def plot_pr_curves(y_test, scores: dict, results: dict, base_rate: float, path: 
             zorder=3,
         )
         dx, dy, ha = LABEL_OFFSETS.get(model, (-10, -16 - 14 * i, "right"))
+        if dx > 0 and r["recall"] > 0.75:  # a label to the right would run off the chart
+            dx, dy, ha = -10, 10, "right"
         ax.annotate(
             f"{SHORT.get(model, name)} F1 {r['f1']:.2f}",
             (r["recall"], r["precision"]),
@@ -114,9 +116,14 @@ def plot_pr_curves(y_test, scores: dict, results: dict, base_rate: float, path: 
     ax.set_xlabel("Recall: share of anomalies caught")
     ax.set_ylabel("Precision: share of alerts that are real")
     ax.set_title("Precision vs recall on the test split (dots = chosen thresholds)", loc="left")
-    # lower-left middle is empty (curves hug the top and right edges)
+    # Legend BELOW the chart: curves differ per dataset, so no spot inside is always empty.
     ax.legend(
-        loc="center left", bbox_to_anchor=(0.02, 0.30), frameon=False, fontsize=9, labelcolor=TEXT
+        loc="upper left",
+        bbox_to_anchor=(0, -0.13),
+        ncol=2,
+        frameon=False,
+        fontsize=9,
+        labelcolor=TEXT,
     )
     return _save(fig, path)
 

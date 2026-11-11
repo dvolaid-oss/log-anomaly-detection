@@ -1,0 +1,60 @@
+# Config for the BGL 2k sample (LogHub GitHub, 2,000 lines). Small and fast; also has
+# LogHub's hand-checked template per line, used to score our parser.
+
+dataset: bgl
+seed: 42
+
+paths:
+  raw_dir: data/raw/bgl_sample
+  artifacts_dir: artifacts/bgl_sample
+  reports_dir: reports/bgl_sample
+
+data:
+  files:
+    # Pinned to a fixed commit, so the files can never change under us.
+    - url: https://raw.githubusercontent.com/logpai/loghub/374038faa4ca122dd7ca0730372c0b78f76f8597/BGL/BGL_2k.log
+      filename: BGL_2k.log
+      checksum: sha256:2a819ea540909db682005c9cf948387a40729b5c2e9f19d430e29ce704825496
+    - url: https://raw.githubusercontent.com/logpai/loghub/374038faa4ca122dd7ca0730372c0b78f76f8597/BGL/BGL_2k.log_structured.csv
+      filename: BGL_2k.log_structured.csv
+      checksum: sha256:3fe74103c0b02a28514534e2a47257a3f770135ca61afd425bbd3b9d6a31fe26
+  log_file: BGL_2k.log
+  label_file: null
+  truth_file: BGL_2k.log_structured.csv   # ground-truth templates → parsing accuracy
+
+grouping:                         # Stage 8: BGL has no sessions → fixed time windows
+  method: time_window
+  window_minutes: 10              # non-overlapping; chosen on the TRAIN period only: 10 min
+                                  # keeps anomalies rare (10.2% of windows vs 20.5% at 60 min)
+
+parsing:                          # masking + Drain
+  sim_threshold: 0.4
+  depth: 4
+  masks:                          # regexes replaced BEFORE Drain, in this order
+    - name: IP                    # IPv4 with optional port, e.g. 172.16.96.116:33569
+      pattern: '(\d+\.){3}\d+(:\d+)?'
+    - name: HEX                   # 0x-prefixed hex, e.g. 0x0b85eee0
+      pattern: '0x[0-9a-fA-F]+'
+    - name: NODE                  # BlueGene/L location, e.g. R02-M1-N0-C:J12-U11
+      pattern: 'R\d\d-M\d[-A-Za-z0-9:]*'
+    - name: NUM                   # bare 8-char value, e.g. 'iar 00106570 dear 0247c8b4' (same
+                                  # placeholder as numbers: 23431872 is decimal, 0247c8b4 hex)
+      pattern: '\b[0-9a-fA-F]{8}\b'
+    - name: NUM                   # any remaining number
+      pattern: '\d+'
+
+features:                         # event-count matrix per window
+  type: event_count
+  scale: false
+  split:                          # by TIME: train, validation, test
+    train: 0.6
+    validation: 0.2
+
+models:
+  baseline: {}
+  pca:
+    transform: tfidf
+    variance_kept: 0.95
+  isolation_forest:
+    transform: event_count
+    n_estimators: 100

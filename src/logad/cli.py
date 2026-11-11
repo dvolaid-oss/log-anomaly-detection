@@ -15,6 +15,7 @@ Each pipeline step is one command, and each reads its settings from the config f
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from collections.abc import Callable
 from pathlib import Path
@@ -103,13 +104,8 @@ def ingest(config: ConfigPath = DEFAULT_CONFIG) -> None:
         f"[{cfg['dataset']}] Ingesting {cfg['paths']['raw_dir']} (may take a few minutes)..."
     )
     out_path, stats = ingest_dataset(cfg)
-    typer.echo(f"  lines read:           {stats.lines:,}")
-    typer.echo(f"  lines skipped (bad):  {stats.skipped_lines:,}")
-    typer.echo(f"  rows written:         {stats.rows:,}")
-    typer.echo(f"  lines without block:  {stats.lines_without_group:,}")
-    typer.echo(f"  groups (blocks):      {stats.groups:,}")
-    typer.echo(f"  anomalous groups:     {stats.anomalous_groups:,}")
-    typer.echo(f"  unlabelled groups:    {stats.unlabelled_groups:,}")
+    for name, value in dataclasses.asdict(stats).items():  # each adapter reports its own stats
+        typer.echo(f"  {name.replace('_', ' ') + ':':<22}{value:,}")
     typer.echo(f"Saved {out_path}")
 
 

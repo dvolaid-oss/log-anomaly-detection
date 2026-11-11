@@ -10,6 +10,8 @@ sources over HTTPS and checks every file against a published checksum:
 |--------|--------|----------|--------|
 | `configs/hdfs_sample.yaml` | GitHub [`logpai/loghub`](https://github.com/logpai/loghub), pinned commit | `HDFS_2k.log`, 288 KB, 2,000 lines + `HDFS_2k.log_structured.csv` (true template per line, to score the parser) | no |
 | `configs/hdfs.yaml` | [Zenodo record 8196385](https://zenodo.org/records/8196385) | `HDFS_v1.zip`, 187 MB → 1.6 GB, 11.2M lines | yes, per block |
+| `configs/bgl_sample.yaml` | GitHub `logpai/loghub`, pinned commit | `BGL_2k.log` + `BGL_2k.log_structured.csv` (true templates) | yes, per line |
+| `configs/bgl.yaml` | [Zenodo record 8196385](https://zenodo.org/records/8196385) | `BGL.zip`, 57 MB → 0.7 GB, 4.7M lines | yes, per line (first word) |
 
 ```powershell
 logad download --config configs/hdfs.yaml   # download + verify + extract

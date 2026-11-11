@@ -9,13 +9,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from logad.adapters import hdfs
+from logad.adapters import bgl, hdfs
 
-ADAPTERS = {"hdfs": hdfs.ingest}
+ADAPTERS = {"hdfs": hdfs.ingest, "bgl": bgl.ingest}
 OUTPUT_FILE = "logs.parquet"
 
 
-def ingest_dataset(config: dict[str, Any]) -> tuple[Path, hdfs.IngestStats]:
+def ingest_dataset(config: dict[str, Any]) -> tuple[Path, Any]:
     """Run the dataset's adapter: raw log file → `<artifacts_dir>/logs.parquet`."""
     dataset = config["dataset"]
     if dataset not in ADAPTERS:

@@ -132,6 +132,41 @@ Brackets: 95% bootstrap confidence intervals.
 
 ![Precision-recall curves](reports/hdfs/pr_curves.png)
 
+## Second dataset: BGL (does it generalise?)
+
+[LogHub BGL](https://github.com/logpai/loghub): 4.7M lines from the **BlueGene/L
+supercomputer**, a very different log type. It has **no sessions**, so lines are grouped into
+**10-minute windows** (a window is anomalous if any line is an alert). The window size was
+chosen on the training period only: 10 minutes keeps anomalies rare (10% of windows vs 55%
+with 6-hour windows), which unsupervised detectors need. The adapter also removes a
+**leakage trap**: each raw BGL line starts with its own label, which the model must never see.
+
+Same code, new config: parsing reaches **96.85% grouping accuracy** on LogHub's labelled BGL
+sample (438 templates on the full data). Test split (newest 20%: 2,111 windows, 9.3% anomalous),
+evaluated once with the same settings as HDFS:
+
+| Model | Precision | Recall | F1 [95% CI] | False alarms | Missed |
+|-------|----------:|-------:|-------------|-------------:|-------:|
+| Rule baseline | 0.115 | 0.939 | 0.205 [0.180–0.229] | 1,423 | 12 |
+| PCA | 0.115 | 0.934 | 0.204 [0.178–0.228] | 1,420 | 13 |
+| **Isolation Forest** | **0.986** | 0.345 | **0.511** [0.434–0.580] | **1** | 129 |
+| Autoencoder | 0.118 | 0.863 | 0.207 [0.180–0.232] | 1,274 | 27 |
+
+**BGL is much harder, and the ranking flips:** PCA (best on HDFS) is now among the weakest,
+Isolation Forest (worst on HDFS) is the best. Why (analysis only, nothing tuned on test):
+
+- **"Rare" isn't "bad" here.** BGL has a long tail of rare but harmless messages, so methods
+  that flag rarity or unusual mixes raise ~1,400 false alarms.
+- **The training data isn't clean.** 10% of training windows are anomalous, and 19 of the 33
+  alert types in the test period already appear as alerts in training (one with 152,723
+  lines). An unsupervised model learns what's common, including those alerts.
+- **Isolation Forest** flags extreme bursts: nearly every alert is real (precision 0.986), but
+  it catches only a third of the anomalies.
+
+**Lesson:** there is no single best detector. HDFS and BGL need different models, which is
+why the pipeline keeps them swappable and compares them the same way.
+Full report: [reports/bgl/results.md](reports/bgl/results.md).
+
 ## Dashboard
 
 A Streamlit app (`app/dashboard.py`) lets anyone try the detector: upload an HDFS log, or use
@@ -177,6 +212,8 @@ logad evaluate --config configs/hdfs.yaml   # thresholds on validation, final me
 
 logad run-all  --config configs/hdfs.yaml   # or: every step above in one command
 logad export-app --config configs/hdfs.yaml # model bundle + demo log for the dashboard
+
+logad run-all  --config configs/bgl.yaml    # the same pipeline on the BGL dataset
 ```
 
 Full setup guide: [docs/setup-windows.md](docs/setup-windows.md).
@@ -204,7 +241,7 @@ data/, artifacts/ raw data and generated files (not committed)
 | 5 | Evaluation + results table | ✅ |
 | 6 | Autoencoder (PyTorch) | ✅ |
 | 7 | Explanations + Streamlit dashboard | ✅ ([live](https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/)) |
-| 8 | BGL (time windows) | ⏳ |
+| 8 | BGL (time windows) | ✅ |
 | 9 | Security logs: SSH brute-force detection | ⏳ |
 | 10 | Polish | ⏳ |
 

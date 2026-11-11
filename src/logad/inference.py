@@ -67,7 +67,8 @@ def export_bundle(config: dict[str, Any], out_dir: Path, model: str = "pca") -> 
     events = event_columns(features.columns)
     train = features.loc[features["split"] == "train", events]
     thresholds = json.loads(needed["thresholds"].read_text(encoding="utf-8"))
-    templates = pd.read_csv(needed["templates"])
+    # keep_default_na=False: an empty template (BGL lines without a message) stays ""
+    templates = pd.read_csv(needed["templates"], keep_default_na=False)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(needed["model"], out_dir / BUNDLE_MODEL)

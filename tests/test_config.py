@@ -8,7 +8,8 @@ CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
 
 
 @pytest.mark.parametrize(
-    ("name", "dataset"), [("hdfs", "hdfs"), ("hdfs_sample", "hdfs"), ("bgl", "bgl")]
+    ("name", "dataset"),
+    [("hdfs", "hdfs"), ("hdfs_sample", "hdfs"), ("bgl", "bgl"), ("bgl_sample", "bgl")],
 )
 def test_project_configs_load(name, dataset):
     config = load_config(CONFIG_DIR / f"{name}.yaml")

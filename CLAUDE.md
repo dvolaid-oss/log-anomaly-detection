@@ -124,12 +124,12 @@ log-anomaly-detection/
 ├── pyproject.toml            # package metadata, ruff + pytest config, `logad` entry point
 ├── requirements.txt          # pinned runtime deps (single source of truth)
 ├── requirements-dev.txt      # + pytest, ruff, ipykernel
-├── configs/                  # hdfs.yaml (full), hdfs_sample.yaml (2k lines), bgl.yaml
+├── configs/                  # hdfs.yaml, hdfs_sample.yaml, bgl.yaml, bgl_sample.yaml
 ├── data/                     # raw data (gitignored), download script fills it
 ├── artifacts/                # parsed logs, features, models (gitignored)
 ├── docs/                     # setup guide, design notes
 ├── src/logad/
-│   ├── adapters/             # base.py (common schema), hdfs.py, bgl.py, auth_log.py, ...
+│   ├── adapters/             # base.py (common schema), hdfs.py, bgl.py, (auth_log.py: Stage 9)
 │   ├── parsing/              # drain.py (masking + Drain wrapper), accuracy.py (grouping accuracy), __init__ (pipeline)
 │   ├── features/             # __init__ (event-count matrix + time splits), transform.py (TF-IDF, scaling)
 │   ├── models/               # base.py, baseline.py, pca.py, iforest.py, (autoencoder.py), __init__ (registry + train_models)
@@ -260,6 +260,26 @@ about 3–4 weeks at 15–20 h/week.
   During deploy, Streamlit committed `.devcontainer/devcontainer.json` (Codespaces, Python
   3.11, CORS/XSRF off) in my name; Claude rebased onto it, and at my request removed it.
   Note: Streamlit's GitHub app can push to this repo, so always `git fetch` before pushing.
+- **2026-11-11 (Stage 8, same session):** BGL. `adapters/bgl.py` (label = first word of the
+  raw line, moved to `label`, never in `message`; a test proves it), configs `bgl.yaml` +
+  `bgl_sample.yaml` (BGL masks: IP, HEX 0x..., NODE R..-M.., bare 8-char -> NUM, NUM),
+  `grouping.method: time_window` in features (non-overlapping `time_bucket` windows, window
+  label = max line label), `logad ingest` prints any adapter's stats. Bugs found and fixed:
+  bare 8-digit decimals got <HEX> vs <NUM> (BGL GA 85.35% -> 96.85%, found by scoring the
+  sample: say so); int8 overflow made the anomaly % negative in the features summary. Full
+  BGL: 4,747,963 lines, 348,460 alert lines (matches LogHub), 438 templates, ingest 21 s,
+  parse 5 s. Window size chosen on the TRAIN period only: 10 min (10.2% anomalous vs 20.5% at
+  60 min, 54.5% at 6 h). 10,555 windows; anomaly rate train 10.17%, validation 4.36%, test
+  9.33%. **BGL test evaluated once (2026-11-11):** F1 baseline 0.205, PCA 0.204, IForest 0.511
+  (precision 0.986, recall 0.345), AE 0.207. Analysis (no tuning): long tail of rare-but-benign
+  templates; train has 10% anomalous windows and 19/33 test alert templates already appear as
+  alerts in train. PR-chart legend moved below the plot (works for any dataset). 8 new tests
+  (112 total). Earlier: CI polling hit GitHub's 60/hour anonymous API limit; poll sparingly.
+  My terminal showed Streamlit deprecation warnings (`use_container_width`): replaced with
+  `width="stretch"` + a guard test. Template reports now escape control characters (a BGL
+  message has NUL bytes) and redact `/home/<name>` usernames (display only; 114 tests).
+  I gave my OK to push before running the BGL
+  pipeline myself. Committed and pushed Stage 8.
 
 ### Done
 - [x] Stage 0: setup + scaffold, pushed to GitHub (public)
@@ -269,11 +289,13 @@ about 3–4 weeks at 15–20 h/week.
 - [x] Stage 4: model interface + baseline, PCA, Isolation Forest + `logad train`, pushed
 - [x] Stage 5: evaluation (thresholds on validation, test once, bootstrap CIs, charts, run-all), pushed
 - [x] Stage 6: PyTorch autoencoder (test F1 0.714; PCA still best at 0.980), pushed
+- [x] Stage 8: BGL adapter + time windows + evaluation (test once; IForest best, F1 0.511), pushed
 - [x] Stage 7: explanations + Streamlit dashboard + export-app, pushed and live at https://log-anomaly-detection-nzno5mxmwpjotewlg6eyqm.streamlit.app/
 
 ### Hand-off for the next session
-- **Next: Stage 8** (BGL adapter with
-  time-window features; also a chance to test a "missing events"/block-length idea on new data).
+- Optional for me: run `logad run-all -c configs/bgl.yaml` myself (same numbers expected).
+- **Next: Stage 9** (security twist: synthetic SSH auth.log with injected brute-force attacks).
+- **RULE also for BGL:** its test split has been used; never tune on it.
 - Deleted (with my OK, 2026-11-11) an old 16.6 MB pip cache on C: (`%LOCALAPPDATA%\pip\cache`,
   from 2026-11-08, before the D: cache setting).
 - If VS Code is closed when I need to run something, Claude launches it:
@@ -289,7 +311,7 @@ about 3–4 weeks at 15–20 h/week.
     rule (recall ~48%, precision ~6%), (6) why labels next to the data is OK (training never
     reads them; otherwise data leakage).
   - Stage 1 and Stage 2 interview questions with strong answers (not given yet), and
-    Stage 2–7 check questions (not asked yet).
+    Stage 2–8 check questions (not asked yet).
 - CI status (public repo):
   `curl -s https://api.github.com/repos/dvolaid-oss/log-anomaly-detection/actions/runs?per_page=3`.
 - Data on my machine: `data/raw/hdfs` (full, 1.6 GB) and `data/raw/hdfs_sample`; parsed
@@ -385,4 +407,11 @@ about 3–4 weeks at 15–20 h/week.
 - Streamlit Cloud only installs requirements.txt, so the app adds `src/` to `sys.path` when
   `logad` isn't installed.
 - Explanation text uses "x" not "×" (Windows console cp1251 can't print ×).
+- BGL windows: FIXED, non-overlapping (sliding windows would overlap the train/test boundary).
+  Size chosen from TRAIN-period stats only (labels looked at for the anomaly share, train only).
+- BGL ranking flip (IForest best, PCA weak) reported as a finding; same model settings as HDFS,
+  nothing tuned per dataset. Future work: semi-supervised (train on known-normal windows only)
+  or per-node windows; that's a different setting and would need its own fresh evaluation.
+- Remaining BGL parsing errors are one-word merges (e.g. "illegal" vs "privileged
+  instruction") at Drain's standard sim_threshold 0.4; left as is (no tuning to the sample).
 - VS Code's kernel picker labels the global `D:\Tools\Python312` "Recommended": always pick `.venv`.

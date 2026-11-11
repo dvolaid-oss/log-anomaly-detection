@@ -155,7 +155,7 @@ if analysis.skipped_lines:
     )
 
 st.subheader("Score distribution")
-st.altair_chart(score_chart(blocks, bundle.threshold), use_container_width=True)
+st.altair_chart(score_chart(blocks, bundle.threshold), width="stretch")
 st.caption("Blocks right of the dashed line are flagged. Hover the bars for counts.")
 
 st.subheader("Blocks, most suspicious first")
@@ -173,7 +173,7 @@ if labels is not None:
 selection = st.dataframe(
     table[columns],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     on_select="rerun",
     selection_mode="single-row",
     column_config={
@@ -208,9 +208,9 @@ with left:
     st.dataframe(
         expected_vs_found(analysis, bundle, chosen),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={"template": st.column_config.TextColumn(width="medium")},
     )
 with right:
     st.markdown("**The block's log lines**")
-    st.dataframe(block_lines(analysis, chosen), hide_index=True, use_container_width=True)
+    st.dataframe(block_lines(analysis, chosen), hide_index=True, width="stretch")

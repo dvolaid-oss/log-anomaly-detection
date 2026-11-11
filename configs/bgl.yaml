@@ -1,5 +1,7 @@
-# Config for the BGL dataset (BlueGene/L supercomputer, LogHub).
-# BGL has no sessions, so samples are built from fixed time windows instead (Stage 8).
+# Config for the full BGL dataset (LogHub BGL: BlueGene/L supercomputer, ~4.7M lines,
+# labelled per LINE: the first word of each raw line is "-" or an alert category).
+# BGL has no sessions, so lines are grouped into fixed time windows.
+# For quick experiments on 2,000 lines, use configs/bgl_sample.yaml.
 
 dataset: bgl
 seed: 42
@@ -9,20 +11,57 @@ paths:
   artifacts_dir: artifacts/bgl
   reports_dir: reports/bgl
 
-grouping:                         # Stage 8
-  method: time_window
-  window_minutes: 60              # length of each window
-  step_minutes: 60                # equal to window → non-overlapping windows
+data:
+  files:
+    - url: https://zenodo.org/records/8196385/files/BGL.zip?download=1
+      filename: BGL.zip           # 57 MB zip → ~0.7 GB unzipped
+      checksum: md5:4452953c470f2d95fcb32d5f6e733f7a   # published by Zenodo
+      extract: true
+  log_file: BGL.log
+  label_file: null                # labels are inside each line (moved out by the adapter)
 
-parsing:
+grouping:                         # Stage 8: BGL has no sessions → fixed time windows
+  method: time_window
+  window_minutes: 10              # non-overlapping; chosen on the TRAIN period only: 10 min
+                                  # keeps anomalies rare (10.2% of windows vs 20.5% at 60 min)
+
+parsing:                          # masking + Drain
   sim_threshold: 0.4
   depth: 4
+  masks:                          # regexes replaced BEFORE Drain, in this order
+    - name: IP                    # IPv4 with optional port, e.g. 172.16.96.116:33569
+      pattern: '(\d+\.){3}\d+(:\d+)?'
+    - name: HEX                   # 0x-prefixed hex, e.g. 0x0b85eee0
+      pattern: '0x[0-9a-fA-F]+'
+    - name: NODE                  # BlueGene/L location, e.g. R02-M1-N0-C:J12-U11
+      pattern: 'R\d\d-M\d[-A-Za-z0-9:]*'
+    - name: NUM                   # bare 8-char value, e.g. 'iar 00106570 dear 0247c8b4' (same
+                                  # placeholder as numbers: 23431872 is decimal, 0247c8b4 hex)
+      pattern: '\b[0-9a-fA-F]{8}\b'
+    - name: NUM                   # any remaining number
+      pattern: '\d+'
 
-features:
+features:                         # event-count matrix per window
   type: event_count
+  scale: false
+  split:                          # by TIME: train, validation, test
+    train: 0.6
+    validation: 0.2
 
-models:
-  isolation_forest:
-    n_estimators: 100
+models:                           # same models as HDFS, fitted on the TRAIN split only
+  baseline: {}
   pca:
+    transform: tfidf
     variance_kept: 0.95
+  isolation_forest:
+    transform: event_count
+    n_estimators: 100
+  autoencoder:                    # needs PyTorch (requirements-torch.txt)
+    transform: tfidf
+    scale: true
+    hidden: 32
+    bottleneck: 8
+    epochs: 30
+    batch_size: 512
+    learning_rate: 0.001
+    patience: 3

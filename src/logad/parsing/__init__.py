@@ -15,6 +15,7 @@ gives the same groups, minutes faster.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -154,7 +155,15 @@ def write_templates_report(templates: pd.DataFrame, config: dict[str, Any]) -> P
         "|-------|----------|------:|--:|",
     ]
     for row in templates.itertuples():
-        template = row.template.replace("|", "\\|")
+        template = for_display(row.template).replace("|", "\\|")
         lines.append(f"| {row.event_id} | `{template}` | {row.lines:,} | {row.pct:.4f} |")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def for_display(text: str) -> str:
+    """Make a template safe to publish in a report (the parser itself is unchanged):
+    control characters become visible escapes (a NUL byte would break the markdown table),
+    and usernames in home-directory paths are redacted."""
+    text = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", lambda m: f"\\x{ord(m.group()):02x}", text)
+    return re.sub(r"/home/[^/\s]+", "/home/<user>", text)
