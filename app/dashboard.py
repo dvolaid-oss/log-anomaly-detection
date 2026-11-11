@@ -47,11 +47,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 _fingerprint = _source_fingerprint()
 _loaded = sys.modules.get("logad")
-_recorded = getattr(_loaded, "_source_fingerprint", None)
-if _loaded is not None and (
-    not str(getattr(_loaded, "__file__", "")).startswith(str(SRC))  # an installed copy
-    or (_recorded is not None and _recorded != _fingerprint)  # files changed since loading
-):
+# Reload unless logad was loaded by THIS dashboard from THESE files: an installed copy, modules
+# loaded by an older dashboard version (no fingerprint: the exact Stage 9 case), or files
+# changed since loading all trigger a fresh import.
+if _loaded is not None and getattr(_loaded, "_source_fingerprint", None) != _fingerprint:
     for _name in [m for m in sys.modules if m == "logad" or m.startswith("logad.")]:
         del sys.modules[_name]
     st.cache_resource.clear()  # cached bundles hold objects from the old code

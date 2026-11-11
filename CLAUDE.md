@@ -263,8 +263,9 @@ about 3–4 weeks at 15–20 h/week.
   Note: Streamlit's GitHub app can push to this repo, so always `git fetch` before pushing.
   After the Stage 9 push the live app ran NEW dashboard.py with OLD (Stage 7) logad code,
   even after my reboot (traceback line numbers matched the old files; CI passed). Fix:
-  dashboard always puts repo src/ first on sys.path and drops logad modules that come
-  from elsewhere or whose source fingerprint changed (+ regression test).
+  dashboard always puts repo src/ first on sys.path and reloads logad unless THIS dashboard
+  version loaded it from these files (fingerprint). First attempt (097b17a) missed modules
+  loaded by an OLDER dashboard (no fingerprint); fixed + test that reproduces the live error.
 - **2026-11-11 (Stage 8, same session):** BGL. `adapters/bgl.py` (label = first word of the
   raw line, moved to `label`, never in `message`; a test proves it), configs `bgl.yaml` +
   `bgl_sample.yaml` (BGL masks: IP, HEX 0x..., NODE R..-M.., bare 8-char -> NUM, NUM),

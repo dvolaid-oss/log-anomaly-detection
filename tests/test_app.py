@@ -132,16 +132,41 @@ def test_non_hdfs_input_gives_clear_error(bundle):
 
 
 # ---------------------------------------------------------------- the dashboard itself
-def test_dashboard_demo_runs_without_errors():
-    from streamlit.testing.v1 import AppTest
+def run_dashboard(setup: str = "") -> dict:
+    """Run the dashboard with Streamlit's AppTest in a SEPARATE process and return its metrics.
 
-    app = AppTest.from_file(str(ROOT / "app" / "dashboard.py"), default_timeout=120).run()
-    assert not app.exception
-    assert len(app.tabs) == 2
-    metrics = {m.label: m.value for m in app.metric}  # both tabs render their demo
+    Separate, because the dashboard reloads logad modules it didn't load itself, which would
+    swap the modules out from under the other tests in this process.
+    """
+    import json
+    import subprocess
+    import sys
+
+    script = (
+        "import json, sys, types\n"
+        f"{setup}\n"
+        "from streamlit.testing.v1 import AppTest\n"
+        f"app = AppTest.from_file({str(ROOT / 'app' / 'dashboard.py')!r}, default_timeout=120)\n"
+        "app.run()\n"
+        "print(json.dumps({'exceptions': [str(e.value) for e in app.exception],\n"
+        "                  'tabs': len(app.tabs),\n"
+        "                  'metrics': [[m.label, m.value] for m in app.metric]}))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=300, cwd=ROOT
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def test_dashboard_demo_runs_without_errors():
+    app = run_dashboard()
+    assert app["exceptions"] == []
+    assert app["tabs"] == 2
+    metrics = dict(app["metrics"])  # both tabs render their demo
     assert metrics["Blocks"] == "300"
     assert metrics["IP windows"] == "411"
-    caught = [m.value for m in app.metric if m.label == "Caught"]
+    caught = [value for label, value in app["metrics"] if label == "Caught"]
     assert caught[0].endswith("/30") and caught[1].endswith("/35")
 
 
@@ -193,23 +218,22 @@ def test_best_model_uses_validation_f1():
 
 
 def test_dashboard_ignores_a_stale_installed_logad():
-    # Regression (Stage 9 deploy): the hosted app ran an OLD logad while dashboard.py was new.
-    # Run in a separate process so the fake module can't affect other tests.
-    import subprocess
-    import sys
+    # An older installed copy of the package must not shadow this repo's src/.
+    setup = (
+        "old = types.ModuleType('logad'); old.__file__ = '/site-packages/logad/__init__.py'; "
+        "sys.modules['logad'] = old"
+    )
+    assert run_dashboard(setup)["exceptions"] == []
 
-    script = (
-        "import sys, types\n"
-        "old = types.ModuleType('logad'); old.__file__ = '/site-packages/logad/__init__.py'\n"
-        "sys.modules['logad'] = old\n"
-        "from streamlit.testing.v1 import AppTest\n"
-        f"app = AppTest.from_file({str(ROOT / 'app' / 'dashboard.py')!r}, default_timeout=120)\n"
-        "app.run()\n"
-        "assert not app.exception, app.exception\n"
-        "print('ok')\n"
+
+def test_dashboard_reloads_logad_left_in_memory_by_an_older_version():
+    # The exact Stage 9 live failure: logad loaded from src/ by an OLDER dashboard (so no
+    # fingerprint), still looking for the old model file name. It must be reloaded.
+    setup = (
+        f"sys.path.insert(0, {str(ROOT / 'src')!r}); "
+        "import logad.inference; "
+        "logad.inference.BUNDLE_MODEL = 'pca.joblib'"  # what the Stage 7 code expected
     )
-    result = subprocess.run(
-        [sys.executable, "-c", script], capture_output=True, text=True, timeout=300
-    )
-    assert result.returncode == 0, result.stderr[-2000:]
-    assert "ok" in result.stdout
+    app = run_dashboard(setup)
+    assert app["exceptions"] == []
+    assert dict(app["metrics"])["Blocks"] == "300"
