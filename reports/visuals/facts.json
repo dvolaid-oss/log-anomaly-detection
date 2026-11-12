@@ -1,0 +1,200 @@
+{
+ "summary": {
+  "hdfs": {
+   "test_groups": 115012,
+   "anomalies": 1679,
+   "anomaly_pct": 1.46,
+   "median_lines_normal": 13.0,
+   "median_lines_anomaly": 4.0,
+   "median_event_types_normal": 5.0,
+   "median_event_types_anomaly": 3.0
+  },
+  "bgl": {
+   "test_groups": 2111,
+   "anomalies": 197,
+   "anomaly_pct": 9.33,
+   "median_lines_normal": 11.0,
+   "median_lines_anomaly": 238.0,
+   "median_event_types_normal": 3.0,
+   "median_event_types_anomaly": 6.0
+  },
+  "auth": {
+   "test_groups": 2961,
+   "anomalies": 267,
+   "anomaly_pct": 9.02,
+   "median_lines_normal": 2.0,
+   "median_lines_anomaly": 2.0,
+   "median_event_types_normal": 2.0,
+   "median_event_types_anomaly": 1.0
+  }
+ },
+ "pca_scatter": {
+  "hdfs": {
+   "normal_shown": 4000,
+   "normal_total": 113333,
+   "anomalies_shown": 1679,
+   "variance_pct": [
+    21.2,
+    13.2
+   ]
+  },
+  "bgl": {
+   "normal_shown": 1914,
+   "normal_total": 1914,
+   "anomalies_shown": 197,
+   "variance_pct": [
+    13.4,
+    5.9
+   ]
+  },
+  "auth": {
+   "normal_shown": 2694,
+   "normal_total": 2694,
+   "anomalies_shown": 267,
+   "variance_pct": [
+    36.1,
+    22.1
+   ]
+  }
+ },
+ "box_plot": {
+  "hdfs": {
+   "model": "pca",
+   "median_normal": 1.563917980302879,
+   "median_anomaly": 43.57517825119549,
+   "threshold": 2.2232034155737828,
+   "share_normal_above": 4.411777681699064e-05,
+   "share_anomaly_above": 0.9636688505062537
+  },
+  "bgl": {
+   "model": "isolation_forest",
+   "median_normal": 0.29450759069238164,
+   "median_anomaly": 0.3124818235802953,
+   "threshold": 0.3932226565759823,
+   "share_normal_above": 0.0005224660397074191,
+   "share_anomaly_above": 0.34517766497461927
+  },
+  "auth": {
+   "model": "autoencoder",
+   "median_normal": 0.00029408937552943826,
+   "median_anomaly": 0.011461828835308552,
+   "threshold": 0.008782295510172844,
+   "share_normal_above": 0.06421677802524128,
+   "share_anomaly_above": 0.9438202247191011
+  }
+ },
+ "distribution": {
+  "hdfs": {
+   "missed": 61,
+   "false_alarms": 5,
+   "anomalies": 1679,
+   "normals": 113333
+  },
+  "bgl": {
+   "missed": 129,
+   "false_alarms": 1,
+   "anomalies": 197,
+   "normals": 1914
+  },
+  "auth": {
+   "missed": 15,
+   "false_alarms": 173,
+   "anomalies": 267,
+   "normals": 2694
+  }
+ },
+ "bubble": {
+  "hdfs": {
+   "events": 27,
+   "anomaly_signals": 19,
+   "top": [
+    {
+     "event": "E16",
+     "template": "writeBlock <BLK> received exception java.io.IOException: Could not read from stream",
+     "pct_normal": 0.0,
+     "pct_anomaly": 33.95
+    },
+    {
+     "event": "E33",
+     "template": "Unexpected error trying to delete block <BLK>. BlockInfo not found in volumeMap.",
+     "pct_normal": 0.0,
+     "pct_anomaly": 14.71
+    },
+    {
+     "event": "E21",
+     "template": "BLOCK* NameSystem.addStoredBlock: Redundant addStoredBlock request received for <BLK> on <IP> size <NUM>",
+     "pct_normal": 0.0,
+     "pct_anomaly": 10.24
+    }
+   ]
+  },
+  "bgl": {
+   "events": 259,
+   "anomaly_signals": 194,
+   "top": [
+    {
+     "event": "E398",
+     "template": "ciod: Error reading message prefix on CioStream socket to <IP>, <*> <*> <*> <*>",
+     "pct_normal": 0.0,
+     "pct_anomaly": 49.24
+    },
+    {
+     "event": "E20",
+     "template": "machine check <*>",
+     "pct_normal": 0.0,
+     "pct_anomaly": 34.01
+    },
+    {
+     "event": "E34",
+     "template": "floating point <*> <*>",
+     "pct_normal": 0.0,
+     "pct_anomaly": 32.99
+    }
+   ]
+  },
+  "auth": {
+   "events": 10,
+   "anomaly_signals": 3,
+   "top": [
+    {
+     "event": "E1",
+     "template": "Failed password for <*> from <IP> port <NUM> ssh<NUM>",
+     "pct_normal": 15.59,
+     "pct_anomaly": 95.51
+    }
+   ]
+  }
+ },
+ "attack_box_plot": {
+  "normal": {
+   "windows": 2694,
+   "median": 0.00029408937552943826,
+   "share_above": 0.06421677802524128
+  },
+  "brute_force": {
+   "windows": 4,
+   "median": 0.11084350943565369,
+   "share_above": 1.0
+  },
+  "distributed": {
+   "windows": 237,
+   "median": 0.011461828835308552,
+   "share_above": 1.0
+  },
+  "password_spray": {
+   "windows": 9,
+   "median": 0.011190805584192276,
+   "share_above": 0.7777777777777778
+  },
+  "compromise": {
+   "windows": 9,
+   "median": 0.005558556877076626,
+   "share_above": 0.4444444444444444
+  },
+  "account_takeover": {
+   "windows": 8,
+   "median": 0.00021391891641542315,
+   "share_above": 0.0
+  }
+ }
+}

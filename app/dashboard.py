@@ -293,6 +293,11 @@ st.markdown(
     f"Unsupervised anomaly detection on system and security logs, with explanations. "
     f"[How it works (GitHub)]({REPO_URL})"
 )
-for tab, dataset in zip(st.tabs([m["tab"] for m in DATASETS.values()]), DATASETS, strict=True):
+# A link can open a tab first: ...streamlit.app/?tab=auth shows the SSH tab first.
+order = list(DATASETS)
+wanted = st.query_params.get("tab")
+if wanted in DATASETS:
+    order = [wanted] + [d for d in order if d != wanted]
+for tab, dataset in zip(st.tabs([DATASETS[d]["tab"] for d in order]), order, strict=True):
     with tab:
         render(dataset)

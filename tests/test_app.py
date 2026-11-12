@@ -132,7 +132,7 @@ def test_non_hdfs_input_gives_clear_error(bundle):
 
 
 # ---------------------------------------------------------------- the dashboard itself
-def run_dashboard(setup: str = "") -> dict:
+def run_dashboard(setup: str = "", tab: str = "") -> dict:
     """Run the dashboard with Streamlit's AppTest in a SEPARATE process and return its metrics.
 
     Separate, because the dashboard reloads logad modules it didn't load itself, which would
@@ -147,9 +147,11 @@ def run_dashboard(setup: str = "") -> dict:
         f"{setup}\n"
         "from streamlit.testing.v1 import AppTest\n"
         f"app = AppTest.from_file({str(ROOT / 'app' / 'dashboard.py')!r}, default_timeout=120)\n"
-        "app.run()\n"
+        + (f"app.query_params['tab'] = {tab!r}\n" if tab else "")
+        + "app.run()\n"
         "print(json.dumps({'exceptions': [str(e.value) for e in app.exception],\n"
         "                  'tabs': len(app.tabs),\n"
+        "                  'first_tab': app.tabs[0].label if app.tabs else '',\n"
         "                  'metrics': [[m.label, m.value] for m in app.metric]}))\n"
     )
     result = subprocess.run(
@@ -237,3 +239,10 @@ def test_dashboard_reloads_logad_left_in_memory_by_an_older_version():
     app = run_dashboard(setup)
     assert app["exceptions"] == []
     assert dict(app["metrics"])["Blocks"] == "300"
+
+
+def test_dashboard_link_can_open_the_ssh_tab_first():
+    app = run_dashboard(tab="auth")  # ...streamlit.app/?tab=auth
+    assert app["exceptions"] == []
+    assert "SSH" in app["first_tab"]
+    assert "HDFS" in run_dashboard()["first_tab"]  # default order unchanged

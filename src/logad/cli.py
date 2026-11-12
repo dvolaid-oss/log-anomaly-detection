@@ -195,6 +195,26 @@ def evaluate(config: ConfigPath = DEFAULT_CONFIG) -> None:
     )
 
 
+@app.command()
+@friendly_errors
+def charts(
+    config: Annotated[
+        list[Path], typer.Option("--config", "-c", help="One or more dataset configs.")
+    ] = [DEFAULT_CONFIG],  # noqa: B006
+    out: Annotated[Path, typer.Option(help="Folder for the figures.")] = Path("reports/visuals"),
+) -> None:
+    """README figures (scatter, box, distribution, bubble) comparing normal vs anomaly data."""
+    from logad.evaluation.visuals import make_charts
+
+    facts = make_charts([load_config(c) for c in config], out)
+    typer.echo(f"Saved {len(list(out.glob('*.png')))} figures and facts.json in {out}")
+    for dataset, summary in facts["summary"].items():
+        typer.echo(
+            f"  {dataset}: {summary['test_groups']:,} test groups, "
+            f"{summary['anomaly_pct']}% anomalous"
+        )
+
+
 @app.command("export-app")
 @friendly_errors
 def export_app(
